@@ -17,8 +17,17 @@ class QuizService {
     return removeQuiz;
   }
 
-  async update(props: Record<any, any>) {
-    const updateQuiz = new quizModel(props).save();
+  async update(id: string, props: Record<string, unknown>) {
+    const updateQuiz = quizModel.findOneAndUpdate(
+      { _id: id },
+      { ...props },
+      { new: true },
+      (data, err) => {
+        if (err) console.log(err);
+
+        return data;
+      }
+    );
 
     return updateQuiz;
   }
