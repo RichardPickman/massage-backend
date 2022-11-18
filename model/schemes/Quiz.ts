@@ -1,17 +1,11 @@
 import mongoose from "mongoose";
-
-const quizQuestionSchema = new mongoose.Schema({
-  question: String,
-  img: String,
-  answers: [String],
-  correctAnswers: [Number],
-})
+import { questionSchema } from "./Question";
 
 const quizSchema = new mongoose.Schema({
-  questions: [quizQuestionSchema],
+  questions: [questionSchema],
   title: String,
 });
 
-const quizModel = mongoose.model('quiz', quizSchema);
+const quizModel = mongoose.model("quiz", quizSchema);
 
 export default quizModel;
