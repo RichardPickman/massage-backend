@@ -19,11 +19,6 @@ class QuizController {
   async create(req: Request, res: Response, next: any) {
     const { questions, title } = req.body;
 
-    console.log(req.body);
-    console.log(req.files);
-
-    // res.json({ message: "Item created successfully" });
-
     if (!questions || !title) {
       next(ApiError.internal("Incorrect input"));
     }
@@ -36,7 +31,8 @@ class QuizController {
   }
 
   async update(req: Request, res: Response, next: any) {
-    const quiz = await QuizResolver.find({ ...req.body });
+    const { id, ...body } = req.body;
+    const quiz = await QuizResolver.update(id, body);
 
     res.json({ message: "return item", payload: quiz });
   }
