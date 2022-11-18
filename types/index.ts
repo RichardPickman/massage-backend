@@ -14,13 +14,13 @@ export interface Quiz extends Document {
   correctAnswer: number[];
 }
 
-export interface Image {
+export interface Question extends Document {
+  question: string;
+  answers: number[];
+  correctAnswers: number[];
+  img: string;
+}
+
+export interface Image extends Document {
   fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  size: number;
-  destination: string;
-  filename: string;
-  path: string;
 }
