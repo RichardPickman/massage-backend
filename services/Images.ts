@@ -4,19 +4,19 @@ class ImageService {
   async create(props: Record<any, any>) {
     const createImage = await new ImageModel(props)
       .save()
-      .then((item) => this.find(item.id));
+      .then((item) => this.find(item.fieldname as string));
 
     return createImage;
   }
 
-  async delete(id: string) {
-    const removeImage = await ImageModel.deleteOne({ _id: id });
+  async delete(fieldname: string) {
+    const removeImage = await ImageModel.deleteOne({ fieldname: fieldname });
 
     return removeImage;
   }
 
-  async find(id: string) {
-    const image = ImageModel.findOne({ _id: id });
+  async find(fieldname: string) {
+    const image = ImageModel.findOne({ fieldname: fieldname });
 
     return image;
   }
