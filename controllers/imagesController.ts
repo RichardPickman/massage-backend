@@ -1,16 +1,15 @@
-import { Request, Response } from "express";
 import { getBucketConfig } from "../config";
 import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { getFormattedBuffer, getRandomName } from "../helpers";
 
 import ImageResolver from "../services/Images";
-import ApiError from "../Error";
 import { Image } from "../types";
 
 const { accesskey, secretkey, region, bucketname } = getBucketConfig();
@@ -24,37 +23,41 @@ const s3 = new S3Client({
 });
 
 class ImagesController {
-  async create(req: Request, res: Response, next: any) {
-    const file = req.file as Image;
-    const buffer = await getFormattedBuffer(file.path);
-
+  async create(file: Express.Multer.File) {
     const imageName = getRandomName();
+    const result = await ImageResolver.create({ fieldname: imageName });
 
-    const params = {
-      Bucket: bucketname,
-      Key: imageName,
-      Body: buffer,
-      ContentType: file.mimetype,
-    };
+    if (result) {
+      const buffer = await getFormattedBuffer(file.path, 1280, 720);
 
-    const command = new PutObjectCommand(params);
+      const params = {
+        Bucket: bucketname,
+        Key: imageName,
+        Body: buffer,
+        ContentType: file.mimetype,
+      };
 
-    s3.send(command);
+      const command = new PutObjectCommand(params);
 
-    const result = await ImageResolver.create({ fieldname: file.fieldname });
+      s3.send(command);
+
+      return result;
+    }
+  }
+
+  async find(fieldname: string) {
+    const result = await ImageResolver.find(fieldname);
 
     return result;
   }
 
-  async get(req: Request, res: Response, next: any) {
-    const { id } = req.params;
+  async getUrl(fieldname: string) {
+    const getImage = await ImageResolver.find(fieldname);
 
-    const image = await ImageResolver.find(id);
-
-    if (image) {
+    if (getImage) {
       const getObjectParams = {
         Bucket: bucketname,
-        Key: image.fieldname,
+        Key: getImage.fieldname,
       };
 
       const command = new GetObjectCommand(getObjectParams);
@@ -64,11 +67,20 @@ class ImagesController {
       return url;
     }
 
-    return;
+    return "";
   }
 
-  async remove(req: Request, res: Response, next: any) {
-    const removeQuiz = await ImageResolver.delete(req.body.id);
+  async remove(fieldname: string) {
+    const image = await this.find(fieldname);
+
+    await ImageResolver.delete(image?.fieldname as string);
+
+    const getObjectParams = {
+      Bucket: bucketname,
+      Key: image?.fieldname as string,
+    };
+
+    new DeleteObjectCommand(getObjectParams);
 
     return;
   }
