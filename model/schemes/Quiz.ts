@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
-import { questionSchema } from "./Question";
+import { Schema } from "mongoose";
 
-const quizSchema = new mongoose.Schema({
-  questions: [questionSchema],
+const quizSchema = new Schema({
+  questions: [{ type: Schema.Types.ObjectId, ref: "questions" }],
   title: String,
 });
 
