@@ -13,21 +13,9 @@ class QuestionController {
       img = await ImageController.create(req.file);
     }
 
-    if (img) {
-      const result = await QuestionResolver.create({
-        ...req.body,
-        img: img.fieldname as string,
-      });
-
-      return res.json({
-        message: "Item created successfully",
-        payload: result,
-      });
-    }
-
     const result = await QuestionResolver.create({
       ...req.body,
-      img: null,
+      img: img ? (img.fieldname as string) : null,
     });
 
     res.json({ message: "Item created successfully", payload: result });
@@ -66,6 +54,7 @@ class QuestionController {
       return;
     }
 
+    // IMAGE POSTED, REMOVE PREVIOUS IMAGE IF EXIST, RETURN UPDATED DATA WITH IMAGE URL;
     if (req.file) {
       const hasImage = !!question.img;
 
@@ -86,7 +75,7 @@ class QuestionController {
       const result = await QuestionResolver.update({
         ...req.body,
         _id: req.params.id,
-        img: createImage.id,
+        img: createImage.fieldname,
       });
 
       res.json({
@@ -97,26 +86,38 @@ class QuestionController {
       return;
     }
 
-    if (!question.img) {
-      const result = await QuestionResolver.update({
-        ...req.body,
-        _id: req.params.id,
-      });
+    const result = await QuestionResolver.update({
+      ...req.body,
+      _id: req.params.id,
+    });
 
-      res.json({
-        message: "Item updated successfully",
-        payload: result,
-      });
-    }
+    return res.json({
+      message: "Item updated successfully",
+      payload: result,
+    });
 
-    if (question.img) {
-      const getUrl = await ImageController.getUrl(question.img as string);
+    // // IMAGE DOESN'T EXIST, RETURN UPDATED DATA;
+    // if (!question.img) {
+    //   const result = await QuestionResolver.update({
+    //     ...req.body,
+    //     _id: req.params.id,
+    //   });
 
-      return res.json({
-        message: "Nothing to report",
-        payload: { ...question, img: getUrl },
-      });
-    }
+    //   return res.json({
+    //     message: "Item updated successfully",
+    //     payload: result,
+    //   });
+    // }
+
+    // // IMAGE NOT POSTED AND IMAGE EXIST, RETURN UPDATED DATA WTIH IMAGE URL;
+    // if (question.img) {
+    //   const getUrl = await ImageController.getUrl(question.img as string);
+
+    //   return res.json({
+    //     message: "Nothing to report",
+    //     payload: { ...question, img: getUrl },
+    //   });
+    // }
   }
 
   async remove(req: Request, res: Response, next: any) {
