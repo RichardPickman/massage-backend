@@ -1,11 +1,12 @@
+import mongoose from "mongoose";
 import QuestionModel from "../model/schemes/Question";
-import { Question } from "../types";
+import { Question } from "./types";
 
 class QuestionService {
   async create(props: Record<any, any>) {
-    const createQuestion = await new QuestionModel(props)
+    const createQuestion = new QuestionModel(props)
       .save()
-      .then((item) => this.find(item.id));
+      .then((item) => this.find(item._id));
 
     return createQuestion;
   }
@@ -16,7 +17,7 @@ class QuestionService {
     return removeQuestion;
   }
 
-  async find(id: string) {
+  async find(id: mongoose.Types.ObjectId | string) {
     const Question = await QuestionModel.findOne({ _id: id });
 
     return Question;
