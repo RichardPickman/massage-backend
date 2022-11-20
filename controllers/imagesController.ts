@@ -10,7 +10,6 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getFormattedBuffer, getRandomName } from "../helpers";
 
 import ImageResolver from "../services/Images";
-import { Image } from "../types";
 
 const { accesskey, secretkey, region, bucketname } = getBucketConfig();
 

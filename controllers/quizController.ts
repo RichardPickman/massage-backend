@@ -4,6 +4,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 
 import QuizResolver from "../services/Quiz";
 import ApiError from "../Error";
+import QuestionResolver from "../services/Question";
 
 const { accesskey, secretkey, region } = getBucketConfig();
 

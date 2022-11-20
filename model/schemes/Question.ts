@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
-import { imageSchema } from "./Image";
+import { Schema } from "mongoose";
 
-export const questionSchema = new mongoose.Schema({
+export const questionSchema = new Schema({
   question: String,
   answers: [String],
-  correctAnswers: [Number],
+  correctAnswers: [String],
   img: String,
 });
 
