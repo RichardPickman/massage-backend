@@ -1,14 +1,29 @@
-import { Document } from "mongoose";
-import ApiError from "../Error";
+import mongoose from "mongoose";
 import quizModel from "../model/schemes/Quiz";
+import Question from "./Question";
 
 class QuizService {
   async create(props: Record<any, any>) {
-    const createQuiz = await new quizModel(props)
-      .save()
-      .then((item) => this.find(item.id));
+    const createQuiz = new quizModel({
+      questions: [],
+      title: props.title,
+    });
 
-    return createQuiz;
+    for (let questionId of props.questions) {
+      const question = await Question.find(questionId);
+
+      if (!question) {
+        break;
+      }
+
+      createQuiz.questions.push(question._id);
+    }
+
+    await createQuiz.save();
+
+    const getCreatedQuiz = await this.find(createQuiz._id);
+
+    return getCreatedQuiz;
   }
 
   async delete(id: string) {
@@ -32,8 +47,13 @@ class QuizService {
     return updateQuiz;
   }
 
-  async find(id: any) {
-    const quiz = quizModel.findOne({ _id: id });
+  async find(id: mongoose.Types.ObjectId | string) {
+    const quiz = await quizModel
+      .findOne({ _id: id })
+      .populate("questions")
+      .exec();
+
+    console.log("FIND ELEMENT: ", quiz);
 
     return quiz;
   }
