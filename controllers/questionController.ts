@@ -7,14 +7,18 @@ const ImageController = new ImagesController();
 
 class QuestionController {
   async create(req: Request, res: Response, next: any) {
+    const body = req.body;
     let img = null;
 
     if (req.file) {
       img = await ImageController.create(req.file);
     }
 
+    const parseAnswers = body.answers.map((item: string) => JSON.parse(item));
+
     const result = await QuestionResolver.create({
-      ...req.body,
+      ...body,
+      answers: parseAnswers,
       img: img ? (img.fieldname as string) : null,
     });
 
@@ -41,7 +45,7 @@ class QuestionController {
 
     res.json({
       message: "Nothing to report",
-      payload: getUrl,
+      payload: { ...question, img: getUrl },
     });
   }
 
