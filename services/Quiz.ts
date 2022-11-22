@@ -4,26 +4,22 @@ import Question from "./Question";
 
 class QuizService {
   async create(props: Record<any, any>) {
-    const createQuiz = new quizModel({
-      questions: [],
+    const questionPromises = props.questions.map((questionId: string) =>
+      Question.find(questionId)
+    );
+
+    const questions = await Promise.all(questionPromises).then((result) =>
+      result.map((question) => (question ? question._id : null))
+    );
+
+    const createQuiz = await new quizModel({
+      questions: questions,
       title: props.title,
-    });
+    }).save();
 
-    for (let questionId of props.questions) {
-      const question = await Question.find(questionId);
+    const createdQuiz = await this.find(createQuiz._id);
 
-      if (!question) {
-        break;
-      }
-
-      createQuiz.questions.push(question._id);
-    }
-
-    await createQuiz.save();
-
-    const getCreatedQuiz = await this.find(createQuiz._id);
-
-    return getCreatedQuiz;
+    return createdQuiz;
   }
 
   async delete(id: string) {
@@ -53,9 +49,7 @@ class QuizService {
       .populate("questions")
       .exec();
 
-    console.log("FIND ELEMENT: ", quiz);
-
-    return quiz;
+    return quiz?.toObject();
   }
 
   async findAll() {
