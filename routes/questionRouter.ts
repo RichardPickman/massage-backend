@@ -9,7 +9,7 @@ const upload = multer({ dest: "./static/lectures" });
 
 router.post("/create", upload.single("img"), question.create);
 router.put("/update/:id", upload.single("img"), question.update);
-router.post("/remove/:id", question.remove);
+router.delete("/remove/:id", question.remove);
 
 router.get("/:id", question.get);
 

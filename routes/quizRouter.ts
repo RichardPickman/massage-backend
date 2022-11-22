@@ -5,9 +5,9 @@ const quiz = new QuizController();
 const router = Router();
 
 router.post("/create", quiz.create);
-router.post("/all", quiz.getAll);
-router.post("/update/:id", quiz.update);
+router.get("/all", quiz.getAll);
+router.put("/update/:id", quiz.update);
 router.post("/remove/:id", quiz.remove);
-router.post("/:id", quiz.get);
+router.get("/:id", quiz.get);
 
 export default router;
