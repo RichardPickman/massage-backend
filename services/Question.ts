@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import QuestionModel from "../model/schemes/Question";
-import { Question } from "./types";
+import { Question } from "../types";
 
 class QuestionService {
   async create(props: Record<any, any>) {
