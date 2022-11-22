@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "api:build": "tsc index.ts --outDir ./build",
-    "api:dev": "nodemon index.ts"
+    "api:dev": "ts-node index.ts"
   },
   "keywords": [],
   "author": "",
