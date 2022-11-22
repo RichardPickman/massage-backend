@@ -1,32 +1,31 @@
 import { Request, Response } from "express";
-import { getBucketConfig } from "../config";
-import { S3Client } from "@aws-sdk/client-s3";
 
 import QuizResolver from "../services/Quiz";
 import ApiError from "../Error";
-import QuestionResolver from "../services/Question";
+import { replaceNameToLink } from "./helpers";
 
-const { accesskey, secretkey, region } = getBucketConfig();
-
-const s3 = new S3Client({
-  credentials: {
-    accessKeyId: accesskey,
-    secretAccessKey: secretkey,
-  },
-  region: region,
-});
+const BUCKET_URL = `https://${process.env.BUCKET_NAME}.s3.${process.env.BUCKET_REGION}.amazonaws.com`;
 
 class QuizController {
   async create(req: Request, res: Response, next: any) {
     const { questions, title } = req.body;
 
     if (!questions || !title) {
-      next(ApiError.internal("Incorrect input"));
+      return next(ApiError.internal("Incorrect input"));
     }
 
     const quiz = await QuizResolver.create({ ...req.body });
 
-    res.json({ message: "Item created successfully", payload: quiz });
+    if (!quiz) {
+      return res.status(404).json({ message: "Quiz create failed" });
+    }
+
+    const questionsWithUrls = replaceNameToLink(quiz);
+
+    res.json({
+      message: "Item created successfully",
+      payload: { ...quiz, questions: questionsWithUrls },
+    });
 
     return;
   }
@@ -39,11 +38,16 @@ class QuizController {
   }
 
   async get(req: Request, res: Response, next: any) {
-    const { id } = req.body;
+    const id = req.params.id;
 
     const quiz = await QuizResolver.find(id);
 
-    res.json({ message: "return item", payload: quiz });
+    const questionsWithUrls = replaceNameToLink(quiz);
+
+    res.json({
+      message: "return item",
+      payload: { ...quiz, questions: questionsWithUrls },
+    });
   }
 
   async getAll(req: Request, res: Response, next: any) {
