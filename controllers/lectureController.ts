@@ -96,7 +96,9 @@ class LectureController {
   }
 
   async remove(req: Request, res: Response, next: any) {
-    const removeQuiz = await LectureResolver.delete(req.body.id);
+    const id = req.params.id;
+
+    const removeQuiz = await LectureResolver.delete(id);
 
     res.json({ message: "Removed successfully", payload: removeQuiz });
   }
