@@ -3,7 +3,7 @@ import { Schema } from "mongoose";
 
 export const questionSchema = new Schema({
   question: String,
-  answers: [String],
+  answers: [Object],
   correctAnswers: [String],
   img: String,
 });
