@@ -1,10 +1,11 @@
-import Router from "express";
 import userController from "../controllers/userController";
 import JwtMiddleware from "../middleware/Token";
 import checkRole from "../middleware/Role";
 
 const user = new userController();
-const router = Router();
+const e = require("express");
+
+const router = e();
 
 router.post("/registration", user.registration);
 router.post("/login", user.login);

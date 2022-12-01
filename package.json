@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "api:build": "tsc index.ts --outDir ./build",
+    "api:build": "tsc index.ts --outDir build/",
     "api:dev": "ts-node index.ts"
   },
   "keywords": [],

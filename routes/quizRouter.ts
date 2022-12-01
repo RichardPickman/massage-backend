@@ -1,8 +1,9 @@
-import Router from "express";
 import QuizController from "../controllers/quizController";
 
 const quiz = new QuizController();
-const router = Router();
+const e = require("express");
+
+const router = e();
 
 router.post("/create", quiz.create);
 router.get("/all", quiz.getAll);

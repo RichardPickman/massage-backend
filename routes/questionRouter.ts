@@ -1,11 +1,12 @@
-import Router from "express";
 import QuestionController from "../controllers/questionController";
-import multer from "multer";
+const Multer = require("multer");
 
 const question = new QuestionController();
-const router = Router();
+const e = require("express");
 
-const upload = multer({ dest: "./static/lectures" });
+const router = e();
+
+const upload = Multer({ dest: "./static/lectures" });
 
 router.post("/create", upload.single("img"), question.create);
 router.put("/update/:id", upload.single("img"), question.update);

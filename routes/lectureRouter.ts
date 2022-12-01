@@ -1,11 +1,12 @@
-import Router from "express";
-import multer from "multer";
+const Multer = require("multer");
 import lectureController from "../controllers/lectureController";
 
 const lecture = new lectureController();
-const router = Router();
+const e = require("express");
 
-const upload = multer({ dest: "./static/lectures" });
+const router = e();
+
+const upload = Multer({ dest: "./static/lectures" });
 
 router.post("/create", upload.array("images", 100), lecture.create);
 router.get("/all", lecture.getAll);

@@ -1,6 +1,6 @@
 import ApiError from "../Error";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import * as bcrypt from "bcrypt";
+import * as jwt from "jsonwebtoken";
 import UserResolver from "../services/User";
 import { Request, Response } from "express";
 import { ObjectId } from "mongodb";

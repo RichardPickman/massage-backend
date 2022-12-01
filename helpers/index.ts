@@ -1,6 +1,6 @@
-import sharp from "sharp";
-import fs from "fs";
-import crypto from "crypto";
+const sharp = require("sharp");
+import * as fs from "fs";
+import * as crypto from "crypto";
 
 export const getFormattedBuffer = async (
   path: string,
