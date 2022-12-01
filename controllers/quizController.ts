@@ -1,10 +1,8 @@
 import { Request, Response } from "express";
+import { replaceNameToLink } from "./helpers";
 
 import QuizResolver from "../services/Quiz";
 import ApiError from "../Error";
-import { replaceNameToLink } from "./helpers";
-
-const BUCKET_URL = `https://${process.env.BUCKET_NAME}.s3.${process.env.BUCKET_REGION}.amazonaws.com`;
 
 class QuizController {
   async create(req: Request, res: Response, next: any) {
@@ -20,7 +18,7 @@ class QuizController {
       return res.status(404).json({ message: "Quiz create failed" });
     }
 
-    const questionsWithUrls = replaceNameToLink(quiz);
+    const questionsWithUrls = replaceNameToLink(quiz?.questions);
 
     res.json({
       message: "Item created successfully",
@@ -42,7 +40,7 @@ class QuizController {
 
     const quiz = await QuizResolver.find(id);
 
-    const questionsWithUrls = replaceNameToLink(quiz);
+    const questionsWithUrls = replaceNameToLink(quiz?.questions);
 
     res.json({
       message: "return item",
