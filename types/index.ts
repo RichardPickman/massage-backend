@@ -7,8 +7,8 @@ export interface User extends Document {
 }
 
 export interface Quiz extends Document {
-  id: number;
   questions: Question[];
+  title: string;
 }
 
 export interface Question extends Document {
