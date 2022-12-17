@@ -53,14 +53,26 @@ class MassageService {
 
   async find(id: string) {
     const massage = await MassageModel.findOne({ _id: id })
-      .populate("technics")
+      .populate({
+        path: "technics",
+        populate: {
+          path: "grips",
+        },
+      })
       .exec();
 
     return massage?.toObject();
   }
 
   async findAll() {
-    const massages = await MassageModel.find({}).populate("technics").exec();
+    const massages = await MassageModel.find({})
+      .populate({
+        path: "technics",
+        populate: {
+          path: "grips",
+        },
+      })
+      .exec();
 
     return massages;
   }
