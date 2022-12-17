@@ -12,9 +12,7 @@ class MassageController {
 
       res.json({ message: "Item created successfully", payload: massage });
     } catch (e) {
-      res.status(501).json({
-        message: "Something went wrong while creating",
-      });
+      res.status(501).json({ message: "Something went wrong while creating" });
     }
 
     return;
@@ -28,22 +26,30 @@ class MassageController {
 
       res.json({ message: "Found", payload: massage });
     } catch (e) {
-      return res.json({ message: "Not found", code: 404 });
+      return res.status(404).json({ message: "Not found" });
     }
   }
 
   static async getAll(req: Request, res: Response, next: any) {
-    const getMassages = await MassageResolver.findAll();
+    try {
+      const getMassages = await MassageResolver.findAll();
 
-    res.json({ message: "Successfully found", payload: getMassages });
+      res.json({ message: "Successfully found", payload: getMassages });
+    } catch (e) {
+      res.status(501).json({ message: "Something went wrong while searching" });
+    }
   }
 
   static async remove(req: Request, res: Response, next: any) {
     const id = req.params.id;
 
-    const removeQuiz = await MassageResolver.delete(id);
+    try {
+      const removeQuiz = await MassageResolver.delete(id);
 
-    res.json({ message: "Removed successfully", payload: removeQuiz });
+      res.json({ message: "Removed successfully", payload: removeQuiz });
+    } catch (e) {
+      res.status(501).json({ message: "Something went wrong while deleting" });
+    }
   }
 }
 
