@@ -2,9 +2,14 @@ import mongoose from "mongoose";
 import { gripSchema } from "./Grip";
 import { Schema } from "mongoose";
 
+const technicSchema = new mongoose.Schema({
+  title: String,
+  grips: [{ type: Schema.Types.ObjectId, ref: "grip" }],
+});
+
 const massageSchema = new mongoose.Schema({
   title: String,
-  items: [{ type: Schema.Types.ObjectId, ref: "grip" }],
+  technics: [technicSchema],
 });
 
 const massageModel = mongoose.model("massage", massageSchema);

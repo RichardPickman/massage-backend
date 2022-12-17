@@ -1,17 +1,43 @@
 import MassageModel from "../model/schemes/Massage";
+import { Technic } from "../types";
 import Grip from "./Grip";
 
-class MassageService {
-  async create(props: Record<any, any>) {
-    const gripsPromises = props.items.map((gripId) => Grip.find(gripId));
+type RequestTechnic = {
+  title: string;
+  grips: [string];
+};
 
-    const grips = await Promise.all(gripsPromises).then((result) =>
-      result.map((grip) => (grip ? grip._id : null))
+type RequestMassage = {
+  title: string;
+  technics: [RequestTechnic];
+};
+
+class MassageService {
+  async _prepareTechnic(technic: RequestTechnic) {
+    const gripsPromises = technic.grips.map((gripId) => Grip.find(gripId));
+
+    const gripsIds = await Promise.all(gripsPromises).then((grips) =>
+      grips.map((grip) => (grip ? grip._id : null))
+    );
+
+    return {
+      title: technic.title,
+      grips: gripsIds,
+    };
+  }
+
+  async create(props: RequestMassage) {
+    const technicPromises = props.technics.map((technic) =>
+      this._prepareTechnic(technic)
+    );
+
+    const technics = await Promise.all(technicPromises).then(
+      (result) => result
     );
 
     const createMassage = await new MassageModel({
       title: props.title,
-      items: grips,
+      technics,
     }).save();
 
     const createdMassage = await this.find(createMassage.id);
@@ -27,14 +53,14 @@ class MassageService {
 
   async find(id: string) {
     const massage = await MassageModel.findOne({ _id: id })
-      .populate("items")
+      .populate("technics")
       .exec();
 
     return massage?.toObject();
   }
 
   async findAll() {
-    const massages = await MassageModel.find({}).populate("items").exec();
+    const massages = await MassageModel.find({}).populate("technics").exec();
 
     return massages;
   }

@@ -21,3 +21,17 @@ export interface Question extends Document {
 export interface Image extends Document {
   fieldname: string;
 }
+
+export interface Massage extends Document {
+  title: string;
+  technics: [Technic];
+}
+
+export interface Technic extends Document {
+  title: string;
+  grips: [Grip];
+}
+
+export interface Grip extends Document {
+  text: string;
+}

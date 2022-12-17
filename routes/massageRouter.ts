@@ -1,14 +1,13 @@
-import massageController from "../controllers/massageController";
+import MassageController from "../controllers/massageController";
 
-const massage = new massageController();
 const e = require("express");
 
 const router = e();
 
-router.post("/create", massage.create);
-router.get("/all", massage.getAll);
-router.delete("/remove/:id", massage.remove);
+router.post("/create", MassageController.create);
+router.get("/all", MassageController.getAll);
+router.delete("/remove/:id", MassageController.remove);
 
-router.get("/:id", massage.get);
+router.get("/:id", MassageController.get);
 
 export default router;
