@@ -12,7 +12,6 @@ class MassageController {
 
       res.json({ message: "Item created successfully", payload: massage });
     } catch (e) {
-      console.log(e);
       res.status(501).json({
         message: "Something went wrong while creating",
       });
