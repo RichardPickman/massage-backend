@@ -1,94 +1,81 @@
-import ApiError from "../Error";
-import * as bcrypt from "bcrypt";
-import * as jwt from "jsonwebtoken";
-import UserResolver from "../services/User";
-import { Request, Response } from "express";
-import { ObjectId } from "mongodb";
-
-function generateJWT(id: ObjectId, email: string, role: string) {
-  return jwt.sign(
-    { id: id, email: email, role },
-    process.env.SECRET_KEY as string,
-    { expiresIn: "24h" }
-  );
-}
+import ApiError from "../exceptions";
+import { Request, Response, NextFunction } from "express";
+import User from "../services/User";
+import { validationResult } from "express-validator";
 
 class UserController {
-  async registration(req: Request, res: Response, next: any) {
-    const { user, email, role, password } = req.body;
+  async registration(req: Request, res: Response, next: NextFunction) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(ApiError.BadRequest("Validation error", errors.array()));
+      }
+      const { email, password } = req.body;
+      const userData = await User.registration(email, password);
 
-    if (!email || !password) {
-      next(ApiError.internal("Incorrect input"));
+      res.cookie("refreshToken", userData.refreshToken, {
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+      });
+
+      return res.json(userData);
+    } catch (e) {
+      console.log(e);
     }
+  }
 
-    const candidate = await UserResolver.find({ email });
+  async activate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const link = req.params.link;
 
-    if (candidate) {
-      return next(ApiError.forbidden("User with provided email already exist"));
+      await User.activate(link);
+
+      console.log("worked");
+    } catch (e) {
+      console.log(e);
     }
+  }
 
-    const hashPassword = await bcrypt.hash(password, 5);
+  async login(req: Request, res: Response, next: NextFunction) {
+    const { email, password } = req.body;
+    const userData = await User.login(email, password);
 
-    const createUser = await UserResolver.create({
-      user,
-      email,
-      password: hashPassword,
-      role: role ? role : "user",
+    res.cookie("refreshToken", userData.refreshToken, {
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
     });
 
-    const token = generateJWT(
-      createUser?._id as ObjectId,
-      email,
-      createUser?.role as string
-    );
-
-    res.json({ token });
-
-    return;
+    return res.json(userData);
   }
 
-  async login(req: Request, res: Response, next: any) {
-    const { email, password } = req.body;
+  async logout(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { refreshToken } = req.cookies;
 
-    const user = await UserResolver.find({ email });
+      const token = await User.logout(refreshToken);
 
-    if (!user) {
-      return next(ApiError.internal("User with provided email does not exist"));
-    }
+      res.clearCookie("refreshToken");
 
-    const checkPass = bcrypt.compareSync(password, user?.password as string);
-
-    if (!checkPass) {
-      return next(ApiError.badRequest("Provided info is not valid!"));
-    }
-
-    const token = generateJWT(
-      user?._id as ObjectId,
-      email,
-      user.role as string
-    );
-
-    res.json({ token });
-
-    return;
+      return res.json(token);
+    } catch (e) {}
   }
 
-  async check(req: Request, res: Response, next: any) {
-    const token = generateJWT(
-      req.body.user?._id,
-      req.body.user?.email,
-      req.body.role
-    );
+  async refresh(req: Request, res: Response, next: NextFunction) {
+    const { refreshToken } = req.cookies;
+    const userData = await User.refresh(refreshToken);
 
-    return res.json({ token });
+    res.cookie("refreshToken", userData.refreshToken, {
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+    });
+
+    res.json(userData);
   }
 
-  async remove(req: Request, res: Response, next: any) {
-    const id = req.params.id;
+  async getAll(req: Request, res: Response, next: NextFunction) {
+    const users = await User.getAll();
 
-    const removeUser = await UserResolver.delete(id);
-
-    res.json({ message: "Removed successfully", payload: removeUser });
+    res.json(users);
   }
 }
 
