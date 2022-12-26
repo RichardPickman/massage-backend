@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 
 import MassageResolver from "../services/Massage";
-import ApiError from "../Error";
+import ApiError from "../exceptions";
 
 class MassageController {
   static async create(req: Request, res: Response, next: any) {

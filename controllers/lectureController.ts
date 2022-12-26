@@ -10,7 +10,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getFormattedBuffer, getRandomName } from "../helpers";
 
 import LectureResolver from "../services/Lecture";
-import ApiError from "../Error";
+import ApiError from "../exceptions";
 
 const { accesskey, secretkey, region, bucketname } = getBucketConfig();
 

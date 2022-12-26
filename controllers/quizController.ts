@@ -2,14 +2,14 @@ import { Request, Response } from "express";
 import { replaceNameToLink } from "./helpers";
 
 import QuizResolver from "../services/Quiz";
-import ApiError from "../Error";
+import ApiError from "../exceptions";
 
 class QuizController {
   async create(req: Request, res: Response, next: any) {
     const { questions, title } = req.body;
 
     if (!questions || !title) {
-      return next(ApiError.internal("Incorrect input"));
+      return next(ApiError.BadRequest("Incorrect input"));
     }
 
     const quiz = await QuizResolver.create({ ...req.body });
