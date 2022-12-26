@@ -19,6 +19,13 @@ type BucketConfig = {
   bucketname: string;
 };
 
+type MailConfig = {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+};
+
 config();
 
 export const getConfig = (): dbConfig => ({
@@ -31,6 +38,13 @@ export const getConfig = (): dbConfig => ({
 export const getServerConfig = (): ServerConfig => ({
   port: process.env.PORT as string,
   host: process.env.HOST as string,
+});
+
+export const getMailConfig = (): MailConfig => ({
+  host: process.env.SMTP_HOST as string,
+  port: Number(process.env.SMTP_PORT),
+  user: process.env.SMTP_USER as string,
+  password: process.env.SMTP_PASSWORD as string,
 });
 
 export const getBucketConfig = (): BucketConfig => ({
