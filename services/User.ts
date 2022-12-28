@@ -5,15 +5,14 @@ import { v4 as uuidv4 } from "uuid";
 import MailService from "../controllers/mailController";
 import TokenService from "../controllers/tokenController";
 import UserDto from "../dtos/user";
+import { User } from "../types";
 
 class UserService {
   async registration(email: string, password: string) {
     const candidate = await userModel.findOne({ email });
 
     if (candidate) {
-      console.log("UserService: candidate already found");
-
-      return;
+      throw ApiError.BadRequest("User with provided email already exist");
     }
 
     const hashPassword = await bcrypt.hash(password, 3);
@@ -24,19 +23,16 @@ class UserService {
       password: hashPassword,
       activationLink,
     });
+
     await MailService.sendActivationLink(
       email,
       `${process.env.API_URL}/api/users/activate/${activationLink}`
     );
 
     const userDto = new UserDto(user);
-    const tokens = TokenService.generateTokens({ ...userDto });
-    await TokenService.saveToken(userDto.id, tokens.refreshToken);
+    const updatedUser = await TokenService.updateTokens(userDto);
 
-    return {
-      ...tokens,
-      user: userDto,
-    };
+    return updatedUser;
   }
 
   async activate(activationLink: string) {
@@ -53,7 +49,7 @@ class UserService {
     await user.save();
   }
 
-  async login(email, password) {
+  async login(email: string, password: string) {
     const userData = await userModel.findOne({ email });
 
     if (!userData) {
@@ -67,25 +63,22 @@ class UserService {
     }
 
     const userDto = new UserDto(userData);
-    const tokens = TokenService.generateTokens({ ...userDto });
-    await TokenService.saveToken(userDto.id, tokens.refreshToken);
+    const updatedUser = await TokenService.updateTokens(userDto);
 
-    return {
-      ...tokens,
-      user: userDto,
-    };
+    return updatedUser;
   }
 
-  async logout(refreshToken) {
+  async logout(refreshToken: string) {
     try {
       const token = await TokenService.removeToken(refreshToken);
 
       return token;
-      return;
-    } catch (e) {}
+    } catch (e) {
+      throw Error("Something gone wrong while processing the request");
+    }
   }
 
-  async refresh(refreshToken) {
+  async refresh(refreshToken: string) {
     if (!refreshToken) {
       throw ApiError.UnauthorizedError();
     }
@@ -99,13 +92,9 @@ class UserService {
 
     const user = await userModel.findById(userData.id);
     const userDto = new UserDto(user);
-    const tokens = TokenService.generateTokens({ ...userDto });
-    await TokenService.saveToken(userDto.id, tokens.refreshToken);
+    const updatedUser = await TokenService.updateTokens(userDto);
 
-    return {
-      ...tokens,
-      user: userDto,
-    };
+    return updatedUser;
   }
 
   async getAll() {
