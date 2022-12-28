@@ -1,6 +1,6 @@
 import ApiError from "../exceptions";
 import userModel from "../model/schemes/User";
-import bcrypt from "bcrypt";
+import * as bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 import MailService from "../controllers/mailController";
 import TokenService from "../controllers/tokenController";

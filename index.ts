@@ -4,8 +4,8 @@ import router from "./routes";
 import errorHandler from "./middleware/ErrorHandle";
 import logger from "./middleware/log/index";
 import "./model/db";
-import cookieParser from "cookie-parser";
 
+const cookieParser = require("cookie-parser");
 const e = require("express");
 const { port } = getServerConfig();
 const app = e();
