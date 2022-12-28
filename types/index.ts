@@ -1,9 +1,12 @@
 import { Document } from "mongoose";
 
 export interface User extends Document {
-  name: string;
-  main: string;
+  user: string;
+  email: string;
   password: string;
+  role: string;
+  isActivated: boolean;
+  activationLink: string;
 }
 
 export interface Quiz extends Document {

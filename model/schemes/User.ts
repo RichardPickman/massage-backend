@@ -3,10 +3,10 @@ import mongoose from "mongoose";
 const userSchema = new mongoose.Schema({
   user: String,
   email: String,
-  role: String,
   password: String,
-  activationLink: String,
+  role: String,
   isActivated: { type: Boolean, default: false },
+  activationLink: String,
 });
 
 const userModel = mongoose.model("users", userSchema);

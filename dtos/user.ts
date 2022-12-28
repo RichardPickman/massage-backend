@@ -1,7 +1,9 @@
+import { User } from "../types";
+
 export default class UserDto {
-  email;
-  id;
-  isActivated;
+  email: string;
+  id: string;
+  isActivated: boolean;
 
   constructor(model) {
     this.email = model.email;
