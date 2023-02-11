@@ -5,6 +5,9 @@ import lectureRouter from "./lectureRouter";
 import questionRouter from "./questionRouter";
 import massageRouter from "./massageRouter";
 import gripsRouter from "./gripsRouter";
+import lessonRouter from "./lessonRouter";
+import teacherRouter from "./teacherRouter";
+
 
 const e = require("express");
 
@@ -16,5 +19,7 @@ router.use("/lectures", lectureRouter);
 router.use("/question", questionRouter);
 router.use("/massage", massageRouter);
 router.use("/grips", gripsRouter);
+router.use("/lesson", lessonRouter);
+router.use("/teacher", teacherRouter);
 
 export default router;
