@@ -4,23 +4,31 @@ import GripResolver from "../services/Grip";
 
 class GripsController {
   async create(req: Request, res: Response, next: any) {
-    const { text } = req.body;
+    const { title } = req.body;
 
-    const Grip = await GripResolver.create({ text });
+    const Grip = await GripResolver.create({ title });
 
     if (!Grip) {
       return res.json({ message: "Something went wrong while creating" });
     }
 
     res.json({ message: "Item created successfully" });
-
-    return;
   }
 
   async getAll(req: Request, res: Response, next: any) {
-    const getGrips = await GripResolver.findAll();
+    const grips = await GripResolver.findAll();
 
-    res.json({ message: "return quizes", payload: getGrips });
+    res.json(grips);
+  }
+
+  async update(req: Request, res: Response, next: any) {
+    const { id, ...rest } = req.body;
+    const updatedGrip = await GripResolver.update(id, { ...rest });
+    const allGrips = await GripResolver.findAll();
+
+    console.log(allGrips);
+
+    res.json(allGrips);
   }
 
   async remove(req: Request, res: Response, next: any) {

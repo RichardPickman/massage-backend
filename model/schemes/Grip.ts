@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 export const gripSchema = new mongoose.Schema({
-  text: String,
+  title: String,
 });
 
 const gripModel = mongoose.model("grip", gripSchema);

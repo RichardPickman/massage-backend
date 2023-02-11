@@ -22,6 +22,17 @@ class GripService {
     return grip;
   }
 
+  async update(
+    id: string | mongoose.Types.ObjectId,
+    updates: Record<string, unknown>
+  ) {
+    const grip = await GripModel.findOneAndUpdate({ _id: id }, updates, {
+      new: true,
+    });
+
+    return grip;
+  }
+
   async findAll() {
     const grips = GripModel.find({});
 
