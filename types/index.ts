@@ -38,3 +38,16 @@ export interface Technic extends Document {
 export interface Grip extends Document {
   text: string;
 }
+
+export type Lesson = {
+  id: string;
+  title: string;
+};
+
+export type Teacher = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  img: string;
+  lessons: [Lesson];
+};
