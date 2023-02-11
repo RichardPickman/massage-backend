@@ -22,12 +22,17 @@ const s3 = new S3Client({
 });
 
 class ImagesController {
-  async create(file: Express.Multer.File) {
+  static async create(
+    file: Express.Multer.File,
+    width: number = 1280,
+    height: number = 720,
+    fit: string = "contain"
+  ) {
     const imageName = getRandomName();
     const result = await ImageResolver.create({ fieldname: imageName });
 
     if (result) {
-      const buffer = await getFormattedBuffer(file.path, 1280, 720);
+      const buffer = await getFormattedBuffer(file.path, width, height, fit);
 
       const params = {
         Bucket: bucketname,
@@ -44,13 +49,13 @@ class ImagesController {
     }
   }
 
-  async find(fieldname: string) {
+  static async find(fieldname: string) {
     const result = await ImageResolver.find(fieldname);
 
     return result;
   }
 
-  async getUrl(fieldname: string) {
+  static async getUrl(fieldname: string) {
     const getImage = await ImageResolver.find(fieldname);
 
     if (getImage) {
@@ -69,7 +74,7 @@ class ImagesController {
     return "";
   }
 
-  async remove(fieldname: string) {
+  static async remove(fieldname: string) {
     const image = await this.find(fieldname);
 
     await ImageResolver.delete(image?.fieldname as string);
