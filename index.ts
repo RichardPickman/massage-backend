@@ -15,7 +15,7 @@ app.use(cookieParser());
 app.use(
   cors({
     origin: "*",
-    credetials: true,
+    credentials: true,
   })
 );
 app.use(logger);
