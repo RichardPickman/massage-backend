@@ -3,16 +3,24 @@ import { replaceNameToLink } from "./helpers";
 
 import QuizResolver from "../services/Quiz";
 import ApiError from "../exceptions";
+import UserDto from "../dtos/user";
+
+interface RequestWithUser extends Request {
+  user: UserDto;
+}
 
 class QuizController {
-  async create(req: Request, res: Response, next: any) {
+  async create(req: RequestWithUser, res: Response, next: any) {
     const { questions, title } = req.body;
 
     if (!questions || !title) {
       return next(ApiError.BadRequest("Incorrect input"));
     }
 
-    const quiz = await QuizResolver.create({ ...req.body });
+    const quiz = await QuizResolver.create({
+      ...req.body,
+      userId: req.user.id,
+    });
 
     if (!quiz) {
       return res.status(404).json({ message: "Quiz create failed" });
@@ -55,9 +63,14 @@ class QuizController {
   }
 
   async remove(req: Request, res: Response, next: any) {
-    const removeQuiz = await QuizResolver.delete(req.body.id);
+    try {
+      const { id } = req.params;
+      const removeQuiz = await QuizResolver.delete(id);
 
-    res.json({ message: "Removed successfully", payload: removeQuiz });
+      res.json({ message: "Removed successfully", payload: removeQuiz });
+    } catch (error) {
+      next(error);
+    }
   }
 }
 
