@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import User from "../model/schemes/User";
 import quizModel from "../model/schemes/Quiz";
 import Question from "./Question";
 
@@ -12,9 +13,13 @@ class QuizService {
       result.map((question) => (question ? question._id : null))
     );
 
+    const currentUser = await User.findOne({ _id: props.userId });
+
     const createQuiz = await new quizModel({
       questions: questions,
       title: props.title,
+      image: props.image,
+      author: currentUser,
     }).save();
 
     const createdQuiz = await this.find(createQuiz._id);
@@ -47,13 +52,14 @@ class QuizService {
     const quiz = await quizModel
       .findOne({ _id: id })
       .populate("questions")
+      .populate("author")
       .exec();
 
     return quiz?.toObject();
   }
 
   async findAll() {
-    const quizzes = await quizModel.find({});
+    const quizzes = await quizModel.find({}).populate("author");
 
     return quizzes;
   }
