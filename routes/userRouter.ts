@@ -12,6 +12,7 @@ const router = e();
 router.post(
   "/registration",
   body("email").isEmail(),
+  body("nickname").isLength({ max: 32 }),
   body("password").isLength({ min: 6, max: 32 }),
   user.registration
 );

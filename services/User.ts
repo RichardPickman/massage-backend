@@ -8,7 +8,7 @@ import UserDto from "../dtos/user";
 import { User } from "../types";
 
 class UserService {
-  async registration(email: string, password: string) {
+  async registration(email: string, password: string, nickname: string = "") {
     const candidate = await userModel.findOne({ email });
 
     if (candidate) {
@@ -20,6 +20,7 @@ class UserService {
 
     const user = await userModel.create({
       email,
+      nickname,
       password: hashPassword,
       activationLink,
     });
@@ -100,7 +101,9 @@ class UserService {
   async getAll() {
     const users = await userModel.find();
 
-    return users;
+    const result = users.map((user) => new UserDto(user));
+
+    return result;
   }
 }
 

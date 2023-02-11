@@ -10,8 +10,8 @@ class UserController {
       if (!errors.isEmpty()) {
         return next(ApiError.BadRequest("Validation error", errors.array()));
       }
-      const { email, password } = req.body;
-      const userData = await User.registration(email, password);
+      const { email, password, nickname } = req.body;
+      const userData = await User.registration(email, password, nickname);
 
       res.cookie("refreshToken", userData.refreshToken, {
         maxAge: 30 * 24 * 60 * 60 * 1000,
@@ -19,8 +19,8 @@ class UserController {
       });
 
       return res.json(userData);
-    } catch (e) {
-      console.log(e);
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -29,23 +29,25 @@ class UserController {
       const link = req.params.link;
 
       await User.activate(link);
-
-      console.log("worked");
-    } catch (e) {
-      console.log(e);
+    } catch (error) {
+      next(error);
     }
   }
 
   async login(req: Request, res: Response, next: NextFunction) {
-    const { email, password } = req.body;
-    const userData = await User.login(email, password);
+    try {
+      const { email, password } = req.body;
+      const userData = await User.login(email, password);
 
-    res.cookie("refreshToken", userData.refreshToken, {
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      httpOnly: true,
-    });
+      res.cookie("refreshToken", userData.refreshToken, {
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+      });
 
-    return res.json(userData);
+      res.json(userData);
+    } catch (error) {
+      next(error);
+    }
   }
 
   async logout(req: Request, res: Response, next: NextFunction) {
@@ -57,25 +59,35 @@ class UserController {
       res.clearCookie("refreshToken");
 
       return res.json(token);
-    } catch (e) {}
+    } catch (error) {
+      next(error);
+    }
   }
 
   async refresh(req: Request, res: Response, next: NextFunction) {
-    const { refreshToken } = req.cookies;
-    const userData = await User.refresh(refreshToken);
+    try {
+      const { refreshToken } = req.cookies;
+      const userData = await User.refresh(refreshToken);
 
-    res.cookie("refreshToken", userData.refreshToken, {
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      httpOnly: true,
-    });
+      res.cookie("refreshToken", userData.refreshToken, {
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+      });
 
-    res.json(userData);
+      res.json(userData);
+    } catch (error) {
+      next(error);
+    }
   }
 
   async getAll(req: Request, res: Response, next: NextFunction) {
-    const users = await User.getAll();
+    try {
+      const users = await User.getAll();
 
-    res.json(users);
+      res.json(users);
+    } catch (error) {
+      next(error);
+    }
   }
 }
 

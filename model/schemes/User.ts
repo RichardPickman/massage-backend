@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
-  user: String,
+  nickname: String,
   email: String,
   password: String,
-  role: String,
+  role: { type: String, default: "user" },
   isActivated: { type: Boolean, default: false },
   activationLink: String,
 });
