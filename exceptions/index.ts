@@ -8,6 +8,10 @@ class ApiError extends Error {
     this.errors = errors;
   }
 
+  static ServerSideError(from: string) {
+    return new ApiError(500, `Something went wrong while processing: ${from}`);
+  }
+
   static UnauthorizedError() {
     return new ApiError(401, "User is not authorized");
   }
