@@ -12,7 +12,7 @@ interface JwtWithData extends jwt.JwtPayload {
 class TokenService {
   generateTokens(payload: Record<string, unknown>) {
     const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN, {
-      expiresIn: "30m",
+      expiresIn: "15m",
     });
     const refreshToken = jwt.sign(payload, process.env.REFRESH_TOKEN, {
       expiresIn: "30d",
@@ -59,7 +59,7 @@ class TokenService {
 
     if (tokenData) {
       tokenData.refreshToken = refreshToken;
-      return tokenData.save();
+      return await tokenData.save();
     }
 
     const token = await tokenModel.create({ user: userId, refreshToken });
