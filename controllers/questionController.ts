@@ -3,15 +3,13 @@ import { Request, Response } from "express";
 import QuestionResolver from "../services/Question";
 import ImagesController from "./imagesController";
 
-const ImageController = new ImagesController();
-
 class QuestionController {
   async create(req: Request, res: Response, next: any) {
     const body = req.body;
     let img = null;
 
     if (req.file) {
-      img = await ImageController.create(req.file);
+      img = await ImagesController.create(req.file);
     }
 
     const parseAnswers = body.answers.map((item: string) => JSON.parse(item));
@@ -41,7 +39,7 @@ class QuestionController {
       });
     }
 
-    const getUrl = await ImageController.getUrl(question.img);
+    const getUrl = await ImagesController.getUrl(question.img);
 
     res.json({
       message: "Nothing to report",
@@ -63,10 +61,10 @@ class QuestionController {
       const hasImage = !!question.img;
 
       if (hasImage) {
-        await ImageController.remove(question?.img as string);
+        await ImagesController.remove(question?.img as string);
       }
 
-      const createImage = await ImageController.create(req.file);
+      const createImage = await ImagesController.create(req.file);
 
       if (!createImage) {
         res.json({
@@ -99,29 +97,6 @@ class QuestionController {
       message: "Item updated successfully",
       payload: result,
     });
-
-    // // IMAGE DOESN'T EXIST, RETURN UPDATED DATA;
-    // if (!question.img) {
-    //   const result = await QuestionResolver.update({
-    //     ...req.body,
-    //     _id: req.params.id,
-    //   });
-
-    //   return res.json({
-    //     message: "Item updated successfully",
-    //     payload: result,
-    //   });
-    // }
-
-    // // IMAGE NOT POSTED AND IMAGE EXIST, RETURN UPDATED DATA WTIH IMAGE URL;
-    // if (question.img) {
-    //   const getUrl = await ImageController.getUrl(question.img as string);
-
-    //   return res.json({
-    //     message: "Nothing to report",
-    //     payload: { ...question, img: getUrl },
-    //   });
-    // }
   }
 
   async remove(req: Request, res: Response, next: any) {
