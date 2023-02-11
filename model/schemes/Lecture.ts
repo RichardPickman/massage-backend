@@ -1,12 +1,13 @@
-import mongoose from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const lectureSchema = new mongoose.Schema(
   {
     topic: String,
     images: [Object],
-    teacher: [String],
-    lesson: [String],
+    teacher: { type: Schema.Types.ObjectId, ref: "teacher" },
+    lesson: { type: Schema.Types.ObjectId, ref: "lessons" },
     date: String,
+    author: [{ type: Schema.Types.ObjectId, ref: "users" }],
   },
   {
     timestamps: true,
