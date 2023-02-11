@@ -2,9 +2,15 @@ import { Request, Response } from "express";
 
 import MassageResolver from "../services/Massage";
 import ApiError from "../exceptions";
+import { validationResult } from "express-validator";
 
 class MassageController {
   static async create(req: Request, res: Response, next: any) {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return next(ApiError.BadRequest("Validation error", errors.array()));
+    }
+
     const { title, technics } = req.body;
 
     try {
