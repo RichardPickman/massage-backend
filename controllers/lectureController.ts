@@ -25,30 +25,36 @@ const s3 = new S3Client({
 class LectureController {
   async create(req: Request, res: Response, next: any) {
     const { topic } = req.body;
-    const files = Object(req.files);
+    const files = Array.isArray(req.files) ? req.files : [];
     const imagesNames = [];
 
     if (!topic) {
-      res.json({ message: "Incorrect inputs" });
+      return res.status(400).json({ message: "Incorrect inputs" });
     }
 
-    for (let file of files) {
-      const buffer = await getFormattedBuffer(file.path);
+    for (const file of files) {
+      try {
+        const buffer = await getFormattedBuffer(file.path);
 
-      const imageName = getRandomName();
+        const imageName = getRandomName();
 
-      imagesNames.push(imageName);
+        imagesNames.push(imageName);
 
-      const params = {
-        Bucket: bucketname,
-        Key: imageName,
-        Body: buffer,
-        ContentType: file.mimetype,
-      };
+        const params = {
+          Bucket: bucketname,
+          Key: imageName,
+          Body: buffer,
+          ContentType: file.mimetype,
+        };
 
-      const command = new PutObjectCommand(params);
+        const command = new PutObjectCommand(params);
 
-      s3.send(command);
+        await s3.send(command);
+      } catch (e) {
+        console.log("Lecture image upload failed:", e);
+
+        return res.status(502).json({ message: "Image upload failed" });
+      }
     }
 
     const result = await LectureResolver.create({
