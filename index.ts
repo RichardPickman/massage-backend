@@ -1,3 +1,4 @@
+import "./helpers/slowBufferCompat";
 const cors = require("cors");
 import { getServerConfig } from "./config";
 import router from "./routes";

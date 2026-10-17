@@ -24,13 +24,13 @@ const s3 = new S3Client({
 });
 
 interface LectureDocument {
-  _id: string;
+  _id: unknown;
   topic?: string;
   teacher?: string[];
   lesson?: string[];
   date?: string;
   images?: string[];
-  author?: string;
+  author?: unknown;
   toObject?: () => Record<string, unknown>;
 }
 

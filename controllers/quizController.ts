@@ -4,18 +4,15 @@ import { replaceNameToLink } from "./helpers";
 import QuizResolver from "../services/Quiz";
 import AttemptResolver from "../services/Attempt";
 import ApiError from "../Error";
-import { scoreAttempt, type SubmittedAnswer } from "../helpers/score";
+import { scoreAttempt, type StoredQuestion, type SubmittedAnswer } from "../helpers/score";
 import type { AuthedRequest } from "../middleware/Token";
 
-interface QuizQuestion {
-  _id: string;
-  correctAnswers?: string[];
-}
-
+// Mongoose hands back ObjectIds and lean documents, so the fields this
+// controller inspects are kept unknown and narrowed where they are used.
 interface QuizDocument {
-  _id: string;
-  author?: string;
-  questions?: QuizQuestion[];
+  _id: unknown;
+  author?: unknown;
+  questions?: unknown;
 }
 
 const isOwner = (author: unknown, req: AuthedRequest) =>
@@ -24,12 +21,49 @@ const isOwner = (author: unknown, req: AuthedRequest) =>
 
 // The play view must not hand out the key: the client gets everything it needs
 // to render a question, and learns the correct answers only after submitting.
-const withoutAnswers = (questions: QuizQuestion[] = []) =>
-  questions.map((question) => {
-    const { correctAnswers, ...rest } = question;
+const withoutAnswers = (questions: unknown) => {
+  if (!Array.isArray(questions)) {
+    return [];
+  }
 
-    return { ...rest, correctAnswers: [] as string[] };
+  return questions.map((question: unknown) => {
+    const record = (question ?? {}) as Record<string, unknown>;
+
+    return { ...record, correctAnswers: [] as string[] };
   });
+};
+
+// Only the fields the scorer needs, converted to plain strings: what the
+// database stores are ObjectIds, not the strings the scorer compares.
+const toStoredQuestions = (questions: unknown): StoredQuestion[] => {
+  if (!Array.isArray(questions)) {
+    return [];
+  }
+
+  return questions.flatMap((question: unknown) => {
+    if (!question || typeof question !== "object") {
+      return [];
+    }
+
+    const { _id, correctAnswers } = question as {
+      _id?: unknown;
+      correctAnswers?: unknown;
+    };
+
+    if (!_id) {
+      return [];
+    }
+
+    return [
+      {
+        _id: String(_id),
+        correctAnswers: Array.isArray(correctAnswers)
+          ? correctAnswers.map(String)
+          : [],
+      },
+    ];
+  });
+};
 
 class QuizController {
   async create(req: AuthedRequest, res: Response, next: any) {
@@ -147,9 +181,7 @@ class QuizController {
       return res.status(404).json({ message: "Quiz not found" });
     }
 
-    const questions = (quiz.questions ?? []).filter(
-      (question) => question && question._id
-    );
+    const questions = toStoredQuestions(quiz.questions);
 
     const score = scoreAttempt(questions, answers);
     const questionIds = new Set(

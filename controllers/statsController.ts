@@ -4,7 +4,9 @@ import AttemptResolver from "../services/Attempt";
 
 interface AttemptLike {
   percent?: number | null;
-  quiz?: { _id?: string; title?: string } | string | null;
+  // Mongoose may hand back a populated ObjectId, an unpopulated one, or a
+  // lean subdocument, so it is narrowed where the grouping happens.
+  quiz?: unknown;
   createdAt?: Date | string;
 }
 
@@ -42,8 +44,12 @@ class StatsController {
     >();
 
     attempts.forEach((attempt) => {
-      const quiz = typeof attempt.quiz === "object" ? attempt.quiz : null;
-      const quizId = String(quiz?._id ?? attempt.quiz ?? "");
+      const quizRef = attempt.quiz;
+      const quizRecord =
+        quizRef && typeof quizRef === "object"
+          ? (quizRef as Record<string, unknown>)
+          : null;
+      const quizId = String(quizRecord?._id ?? quizRef ?? "");
       const existing = grouped.get(quizId);
 
       if (existing) {
@@ -54,7 +60,10 @@ class StatsController {
 
       grouped.set(quizId, {
         quizId,
-        title: String(quiz?.title ?? "Deleted quiz"),
+        title:
+          typeof quizRecord?.title === "string"
+            ? quizRecord.title
+            : "Deleted quiz",
         attempts: [attempt],
       });
     });

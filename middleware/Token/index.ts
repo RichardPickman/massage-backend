@@ -1,4 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
+// Must stay above the jsonwebtoken import: it repairs a Buffer export that
+// Node 26 removed and that jsonwebtoken's dependency chain reads on load.
+import "../../helpers/slowBufferCompat";
 import * as jwt from "jsonwebtoken";
 
 export interface TokenUser {
