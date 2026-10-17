@@ -1,37 +1,35 @@
-import { Request, Response } from "express";
+import type { NextFunction, Response } from "express";
 import * as jwt from "jsonwebtoken";
-
-interface BodyRequest extends Request {
-  user?: string | jwt.JwtPayload;
-}
+import { readToken, toTokenUser, type AuthedRequest } from "../Token";
 
 export default function (role: string) {
-  return function (req: BodyRequest, res: Response, next: any) {
+  return function (req: AuthedRequest, res: Response, next: NextFunction) {
     if (req.method === "OPTIONS") {
-      next();
+      return next();
+    }
+
+    const token = readToken(req);
+
+    if (!token) {
+      return res.status(401).json({ message: "Not authorised" });
     }
 
     try {
-      const token = req.headers?.authorization?.split(" ")[1];
+      const decoded = jwt.verify(token, process.env.SECRET_KEY as string);
 
-      if (!token) {
+      if (typeof decoded === "string") {
         return res.status(401).json({ message: "Not authorised" });
       }
-
-      const decoded = jwt.verify(
-        token,
-        process.env.SECRET_KEY as string
-      ) as jwt.JwtPayload;
 
       if (decoded.role !== role) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
-      req.body.user = decoded;
+      req.user = toTokenUser(decoded);
 
-      next();
+      return next();
     } catch (e) {
-      res.status(401).json({ message: "Not authorised" });
+      return res.status(401).json({ message: "Not authorised" });
     }
   };
 }
