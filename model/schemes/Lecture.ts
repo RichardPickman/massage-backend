@@ -7,6 +7,7 @@ const lectureSchema = new mongoose.Schema(
     teacher: [String],
     lesson: [String],
     date: String,
+    author: { type: mongoose.Schema.Types.ObjectId, ref: "users" },
   },
   {
     timestamps: true,

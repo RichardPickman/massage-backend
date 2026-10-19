@@ -1,0 +1,8 @@
+allowBuilds:
+  aws-sdk: false
+  # bcrypt downloads its N-API prebuilt in an install script.
+  bcrypt: true
+  # sharp >= 0.32 ships prebuilt binaries as optional deps. Its install script
+  # only verifies them and misdetects the system libvips (8.18) as a reason to
+  # compile from source, so skip it.
+  sharp: false

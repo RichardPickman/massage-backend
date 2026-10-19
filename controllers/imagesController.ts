@@ -27,18 +27,24 @@ class ImagesController {
     const result = await ImageResolver.create({ fieldname: imageName });
 
     if (result) {
-      const buffer = await getFormattedBuffer(file.path, 1280, 720);
+      try {
+        const buffer = await getFormattedBuffer(file.path, 1280, 720);
 
-      const params = {
-        Bucket: bucketname,
-        Key: imageName,
-        Body: buffer,
-        ContentType: file.mimetype,
-      };
+        const params = {
+          Bucket: bucketname,
+          Key: imageName,
+          Body: buffer,
+          ContentType: file.mimetype,
+        };
 
-      const command = new PutObjectCommand(params);
+        const command = new PutObjectCommand(params);
 
-      s3.send(command);
+        await s3.send(command);
+      } catch (e) {
+        console.log("Question image upload failed:", e);
+
+        return null;
+      }
 
       return result;
     }

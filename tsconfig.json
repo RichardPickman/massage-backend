@@ -99,5 +99,8 @@
     /* Completeness */
     // "skipDefaultLibCheck": true,                      /* Skip type checking .d.ts files that are included with TypeScript. */
     "skipLibCheck": true /* Skip type checking all .d.ts files. */
-  }
+  },
+  /* Tests run on Node's native type stripping via `node --test`, which needs
+     explicit .ts specifiers - something tsc rejects unless it opts out here. */
+  "exclude": ["node_modules", "**/*.test.ts"]
 }

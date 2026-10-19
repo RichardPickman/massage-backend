@@ -5,6 +5,12 @@ import ImagesController from "./imagesController";
 
 const ImageController = new ImagesController();
 
+const normalizeAnswers = (answers: unknown): unknown[] => {
+  const list = Array.isArray(answers) ? answers : [answers].filter(Boolean);
+
+  return list.map((item) => (typeof item === "string" ? JSON.parse(item) : item));
+};
+
 class QuestionController {
   async create(req: Request, res: Response, next: any) {
     const body = req.body;
@@ -14,7 +20,13 @@ class QuestionController {
       img = await ImageController.create(req.file);
     }
 
-    const parseAnswers = body.answers.map((item: string) => JSON.parse(item));
+    let parseAnswers;
+
+    try {
+      parseAnswers = normalizeAnswers(body.answers);
+    } catch (e) {
+      return res.status(400).json({ message: "Incorrect answers" });
+    }
 
     const result = await QuestionResolver.create({
       ...body,
@@ -58,6 +70,16 @@ class QuestionController {
       return;
     }
 
+    let parsedAnswers;
+
+    if (req.body.answers !== undefined) {
+      try {
+        parsedAnswers = normalizeAnswers(req.body.answers);
+      } catch (e) {
+        return res.status(400).json({ message: "Incorrect answers" });
+      }
+    }
+
     // IMAGE POSTED, REMOVE PREVIOUS IMAGE IF EXIST, RETURN UPDATED DATA WITH IMAGE URL;
     if (req.file) {
       const hasImage = !!question.img;
@@ -79,6 +101,7 @@ class QuestionController {
       const result = await QuestionResolver.update({
         ...req.body,
         _id: req.params.id,
+        ...(parsedAnswers ? { answers: parsedAnswers } : {}),
         img: createImage.fieldname,
       });
 
@@ -93,6 +116,7 @@ class QuestionController {
     const result = await QuestionResolver.update({
       ...req.body,
       _id: req.params.id,
+      ...(parsedAnswers ? { answers: parsedAnswers } : {}),
     });
 
     return res.json({

@@ -15,6 +15,16 @@ class LectureService {
     return removeLecture;
   }
 
+  async update(id: string, props: Record<string, unknown>) {
+    const updateLecture = await lectureModel.findOneAndUpdate(
+      { _id: id },
+      { $set: props },
+      { new: true }
+    );
+
+    return updateLecture;
+  }
+
   async find(id: string) {
     const lecture = lectureModel.findOne({ _id: id });
 
