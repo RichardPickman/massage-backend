@@ -86,7 +86,7 @@ class QuizController {
       return res.status(404).json({ message: "Quiz create failed" });
     }
 
-    const questionsWithUrls = replaceNameToLink(quiz?.questions);
+    const questionsWithUrls = await replaceNameToLink(quiz?.questions ?? []);
 
     res.json({
       message: "Item created successfully",
@@ -124,7 +124,7 @@ class QuizController {
       return res.status(404).json({ message: "Quiz not found" });
     }
 
-    const questionsWithUrls = replaceNameToLink(
+    const questionsWithUrls = await replaceNameToLink(
       withoutAnswers(quiz.questions)
     );
 
@@ -152,7 +152,7 @@ class QuizController {
       message: "return item",
       payload: {
         ...quiz,
-        questions: replaceNameToLink(quiz.questions ?? []),
+        questions: await replaceNameToLink(quiz.questions ?? []),
       },
     });
   }

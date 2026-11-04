@@ -38,6 +38,44 @@ const isOwner = (author: unknown, req: AuthedRequest) =>
   Boolean(req.user) &&
   (req.user.role === "admin" || String(author ?? "") === req.user.id);
 
+// Multipart fields arrive as strings; a repeated field arrives as an array.
+const toStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is string =>
+        typeof item === "string" && item.trim().length > 0
+    );
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  return [];
+};
+
+// The edit form sends the S3 keys it wants to keep as a JSON array, so removed
+// images can be deleted from the bucket as well as the record.
+const parseKeepImages = (value: unknown): string[] | null => {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [value];
+  } catch {
+    return [value];
+  }
+};
+
 const getImageUrl = async (key: string) =>
   getSignedUrl(s3, new GetObjectCommand({ Bucket: bucketname, Key: key }), {
     expiresIn: 3600,
@@ -97,8 +135,8 @@ class LectureController {
 
     const result = await LectureResolver.create({
       topic,
-      teacher: req.body.teacher,
-      lesson: req.body.lesson,
+      teacher: toStringArray(req.body.teacher),
+      lesson: toStringArray(req.body.lesson),
       date: req.body.date,
       images: imagesNames,
       author: req.user.id,
@@ -123,6 +161,19 @@ class LectureController {
     }
 
     const files = Array.isArray(req.files) ? req.files : [];
+    const keepImages = parseKeepImages(req.body.keepImages);
+    const existingImages = existing.images ?? [];
+
+    // No keepImages field means a legacy client that only appends.
+    const keptImages =
+      keepImages === null
+        ? existingImages
+        : existingImages.filter((image) => keepImages.includes(image));
+    const removedImages =
+      keepImages === null
+        ? []
+        : existingImages.filter((image) => !keepImages.includes(image));
+
     const addedImages = [];
 
     for (const file of files) {
@@ -135,14 +186,43 @@ class LectureController {
       }
     }
 
-    const images = [...(existing.images ?? []), ...addedImages];
-    const result = await LectureResolver.update(id, {
-      topic: req.body.topic,
-      teacher: req.body.teacher,
-      lesson: req.body.lesson,
-      date: req.body.date,
-      ...(addedImages.length ? { images } : {}),
-    });
+    const fields: Record<string, unknown> = {};
+
+    if (req.body.topic !== undefined) {
+      fields.topic = req.body.topic;
+    }
+
+    if (req.body.teacher !== undefined) {
+      fields.teacher = toStringArray(req.body.teacher);
+    }
+
+    if (req.body.lesson !== undefined) {
+      fields.lesson = toStringArray(req.body.lesson);
+    }
+
+    if (req.body.date !== undefined) {
+      fields.date = req.body.date;
+    }
+
+    if (keepImages !== null || addedImages.length > 0) {
+      fields.images = [...keptImages, ...addedImages];
+    }
+
+    let result;
+
+    try {
+      result = await LectureResolver.update(id, fields);
+    } catch (e) {
+      console.log("Lecture update failed:", e);
+
+      // The newly uploaded objects are not referenced by any record yet.
+      await Promise.all(addedImages.map((image) => removeImage(image)));
+
+      return res.status(500).json({ message: "Lecture update failed" });
+    }
+
+    // Delete objects only once the record has stopped pointing at them.
+    await Promise.all(removedImages.map((image) => removeImage(image)));
 
     res.json({ message: "Lecture updated successfully", payload: result });
 
@@ -164,7 +244,12 @@ class LectureController {
 
     const fields = lecture.toObject ? lecture.toObject() : { ...lecture };
 
-    res.json({ message: "successful", payload: { ...fields, images } });
+    // The viewer needs signed URLs; the edit form needs the keys to keep or
+    // delete stored objects.
+    res.json({
+      message: "successful",
+      payload: { ...fields, images, imageKeys: lecture.images ?? [] },
+    });
 
     return;
   }
