@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { countPages, pageRange, readPageQuery } from "./pagination.ts";
+import { countPages, pageRange, readPageQuery } from "./pagination";
 
 test("answers a bare request exactly like page 1 of the default size", () => {
   const first = { page: 1, limit: 10 };

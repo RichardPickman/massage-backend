@@ -100,7 +100,12 @@
         // "skipDefaultLibCheck": true,                      /* Skip type checking .d.ts files that are included with TypeScript. */
         "skipLibCheck": true /* Skip type checking all .d.ts files. */
     },
-    /* Tests run on Node's native type stripping via `node --test`, which needs
-     explicit .ts specifiers - something tsc rejects unless it opts out here. */
+    /* Specs run through ts-node in CommonJS mode, so they resolve imports the
+     way the rest of the repo does: extensionless, and directories by index.
+     transpileOnly keeps the loader off the typechecker; tsc answers that. */
+    "ts-node": {
+        "transpileOnly": true
+    },
+    /* Specs are run by the test script, never emitted into the build. */
     "exclude": ["node_modules", "build", "**/*.test.ts"]
 }
