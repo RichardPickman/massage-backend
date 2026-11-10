@@ -6,6 +6,8 @@ import type { RequestWithUser } from "../middleware/Token";
 import UserResolver from "../services/User";
 import UserController from "./userController";
 
+const bcrypt = require("bcrypt");
+
 const controller = new UserController();
 
 const secret = "spec-secret";
@@ -41,7 +43,13 @@ const stubCreate = (account: unknown) => {
     return calls;
 };
 
-const register = async (body: Record<string, unknown>) => {
+type Handler = (
+    req: RequestWithUser,
+    res: Response,
+    next: (error: { status: number; message: string }) => void,
+) => unknown;
+
+const call = async (handler: Handler, body: Record<string, unknown>) => {
     const res = {
         statusCode: 0,
         body: undefined as unknown,
@@ -58,17 +66,22 @@ const register = async (body: Record<string, unknown>) => {
     };
     const failures: { status: number; message: string }[] = [];
 
-    await controller.registration(
+    await handler(
         { body } as RequestWithUser,
         res as unknown as Response,
-        ((error: { status: number; message: string }) => {
+        (error) => {
             failures.push(error);
-        }) as unknown,
+        },
     );
 
     return { res, failures };
 };
 
+const register = (body: Record<string, unknown>) =>
+    call(controller.registration.bind(controller) as Handler, body);
+
+const signIn = (body: Record<string, unknown>) =>
+    call(controller.login.bind(controller) as Handler, body);
 test("refuses a registration with no code without reading the user collection", async () => {
     const queries = stubFind({ _id: "existing" });
     const created = stubCreate({ _id: "new" });
@@ -161,4 +174,24 @@ test("registers an admin address with no code, even with no secret set", async (
     } finally {
         process.env.INVITE_SECRET = configured;
     }
+});
+
+test("signs in a differently-cased address against the same account", async () => {
+    const queries = stubFind({
+        _id: "existing",
+        email: "friend@example.com",
+        role: "user",
+        password: bcrypt.hashSync("a-long-password", 10),
+    });
+
+    const { res, failures } = await signIn({
+        email: " Friend@Example.COM ",
+        password: "a-long-password",
+    });
+
+    // The address is stored and looked up normalised, so the capitals someone
+    // typed at sign-up cannot become a second account — or lock them out.
+    assert.deepEqual(failures, []);
+    assert.deepEqual(queries, [{ email: "friend@example.com" }]);
+    assert.ok((res.body as { token: string }).token);
 });

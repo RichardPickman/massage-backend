@@ -49,3 +49,16 @@ export const getInviteConfig = (): InviteConfig => ({
   secret: (process.env.INVITE_SECRET as string) || "",
   adminEmails: (process.env.ADMIN_EMAILS as string) || "",
 });
+
+type ThrottleConfig = {
+  limit: number;
+  windowMs: number;
+};
+
+// Defaults are safe with nothing configured: a person who mistypes a password
+// twice is never refused, and an unset environment variable never means "no
+// limit".
+export const getThrottleConfig = (): ThrottleConfig => ({
+  limit: Number(process.env.AUTH_ATTEMPT_LIMIT) || 10,
+  windowMs: Number(process.env.AUTH_ATTEMPT_WINDOW_MS) || 15 * 60 * 1000,
+});

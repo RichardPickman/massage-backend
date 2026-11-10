@@ -1,4 +1,5 @@
 import userController from "../controllers/userController";
+import { getThrottleConfig } from "../config";
 import JwtMiddleware from "../middleware/Token";
 import { throttle } from "../middleware/Throttle";
 
@@ -7,13 +8,15 @@ const e = require("express");
 
 const router = e();
 
-// Ten tries a quarter of an hour per caller: enough for a mistyped password,
-// far too few to guess one. Registration sits behind the same counter, so an
-// invite code cannot be ground out either, and both routes share it so neither
-// is a cheaper way in than the other.
+// Ten tries a quarter of an hour per caller by default: enough for a mistyped
+// password, far too few to guess one. Registration sits behind the same counter,
+// so an invite code cannot be ground out either, and both routes share it so
+// neither is a cheaper way in than the other.
+const { limit, windowMs } = getThrottleConfig();
+
 const authThrottle = throttle({
-    limit: 10,
-    windowMs: 15 * 60 * 1000,
+    limit,
+    windowMs,
     message: "Too many attempts. Wait a few minutes and try again.",
 });
 
