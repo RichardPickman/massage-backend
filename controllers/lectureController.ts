@@ -9,6 +9,7 @@ import type { Response } from "express";
 import { getBucketConfig } from "../config";
 
 import { getFormattedBuffer, getRandomName } from "../helpers";
+import { readPageQuery } from "../helpers/pagination";
 
 import type { RequestWithUser } from "../middleware/Token";
 import LectureResolver from "../services/Lecture";
@@ -258,10 +259,15 @@ class LectureController {
         return;
     }
 
+    // Always one page: a request carrying no parameters asks for page 1 at the
+    // default size, so no client has to send a parameter to get an answer it
+    // can read.
     async getAll(req: RequestWithUser, res: Response) {
-        const getItems = await LectureResolver.findAll();
+        const query = readPageQuery(req.query);
 
-        res.json({ message: "return lectures", payload: getItems });
+        const page = await LectureResolver.findPage(query);
+
+        res.json({ message: "return lectures", payload: page });
 
         return;
     }

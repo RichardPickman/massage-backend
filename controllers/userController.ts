@@ -3,7 +3,7 @@ import type { Response } from "express";
 import * as jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
 import ApiError from "../Error";
-import type { AuthenticatedRequest } from "../middleware/Token";
+import type { RequestWithUser } from "../middleware/Token";
 import UserResolver from "../services/User";
 
 function generateJWT(id: ObjectId | string, email: string, role: string) {
@@ -15,7 +15,7 @@ function generateJWT(id: ObjectId | string, email: string, role: string) {
 }
 
 class UserController {
-    async registration(req: AuthenticatedRequest, res: Response, next: any) {
+    async registration(req: RequestWithUser, res: Response, next: any) {
         const { user, email, password } = req.body;
 
         if (!email || !password) {
@@ -48,7 +48,7 @@ class UserController {
         return;
     }
 
-    async login(req: AuthenticatedRequest, res: Response, next: any) {
+    async login(req: RequestWithUser, res: Response, next: any) {
         const { email, password } = req.body;
 
         const user = await UserResolver.find({ email });
@@ -82,7 +82,7 @@ class UserController {
     // Issues a fresh token for an already verified one, so the session can be
     // extended. The claims come from the verified token, never from the request
     // body - trusting the body here let a caller mint any role they liked.
-    async check(req: AuthenticatedRequest, res: Response) {
+    async check(req: RequestWithUser, res: Response) {
         if (!req.user) {
             return res.status(401).json({ message: "Not authorised" });
         }
@@ -92,7 +92,7 @@ class UserController {
         return res.json({ token });
     }
 
-    async remove(req: AuthenticatedRequest, res: Response, next: any) {
+    async remove(req: RequestWithUser, res: Response, next: any) {
         const id = req.params.id;
 
         if (!req.user) {

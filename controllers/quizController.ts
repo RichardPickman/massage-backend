@@ -2,12 +2,13 @@ import type { Response } from "express";
 import { replaceNameToLink } from "./helpers";
 
 import ApiError from "../Error";
+import { readPageQuery } from "../helpers/pagination";
 import {
     scoreAttempt,
     type StoredQuestion,
     type SubmittedAnswer,
 } from "../helpers/score";
-import type { AuthenticatedRequest } from "../middleware/Token";
+import type { RequestWithUser } from "../middleware/Token";
 import AttemptResolver from "../services/Attempt";
 import QuizResolver from "../services/Quiz";
 
@@ -19,7 +20,7 @@ interface QuizDocument {
     questions?: unknown;
 }
 
-const isOwner = (author: unknown, req: AuthenticatedRequest) =>
+const isOwner = (author: unknown, req: RequestWithUser) =>
     Boolean(req.user) &&
     (req.user.role === "admin" || String(author ?? "") === req.user.id);
 
@@ -70,7 +71,7 @@ const toStoredQuestions = (questions: unknown): StoredQuestion[] => {
 };
 
 class QuizController {
-    async create(req: AuthenticatedRequest, res: Response, next: any) {
+    async create(req: RequestWithUser, res: Response, next: any) {
         const { questions, title } = req.body;
 
         if (!questions || !title) {
@@ -102,7 +103,7 @@ class QuizController {
         return;
     }
 
-    async update(req: AuthenticatedRequest, res: Response, next: any) {
+    async update(req: RequestWithUser, res: Response, next: any) {
         const id = req.params.id || req.body.id;
 
         const existing = (await QuizResolver.find(id)) as
@@ -123,7 +124,7 @@ class QuizController {
         res.json({ message: "return item", payload: quiz });
     }
 
-    async get(req: AuthenticatedRequest, res: Response) {
+    async get(req: RequestWithUser, res: Response) {
         const id = req.params.id;
 
         const quiz = (await QuizResolver.find(id)) as QuizDocument | undefined;
@@ -143,7 +144,7 @@ class QuizController {
     }
 
     // Full questions including the correct answers, for the author editing a quiz.
-    async edit(req: AuthenticatedRequest, res: Response) {
+    async edit(req: RequestWithUser, res: Response) {
         const quiz = (await QuizResolver.find(req.params.id)) as
             | QuizDocument
             | undefined;
@@ -165,15 +166,20 @@ class QuizController {
         });
     }
 
-    async getAll(req: AuthenticatedRequest, res: Response) {
-        const getItems = await QuizResolver.findAll();
+    // Always one page: a request carrying no parameters asks for page 1 at the
+    // default size, so no client has to send a parameter to get an answer it
+    // can read.
+    async getAll(req: RequestWithUser, res: Response) {
+        const query = readPageQuery(req.query);
 
-        res.json({ message: "return quizes", payload: getItems });
+        const page = await QuizResolver.findPage(query);
+
+        res.json({ message: "return quizes", payload: page });
     }
 
     // Scores the submission against the stored questions. The client is never
     // trusted with its own score.
-    async submit(req: AuthenticatedRequest, res: Response) {
+    async submit(req: RequestWithUser, res: Response) {
         if (!req.user) {
             return res.status(401).json({ message: "Not authorised" });
         }
@@ -224,7 +230,7 @@ class QuizController {
         });
     }
 
-    async remove(req: AuthenticatedRequest, res: Response) {
+    async remove(req: RequestWithUser, res: Response) {
         const id = req.params.id || req.body.id;
 
         const existing = (await QuizResolver.find(id)) as

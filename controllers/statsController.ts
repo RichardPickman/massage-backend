@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import type { AuthenticatedRequest } from "../middleware/Token";
+import type { RequestWithUser } from "../middleware/Token";
 import AttemptResolver from "../services/Attempt";
 
 interface AttemptLike {
@@ -29,7 +29,7 @@ const summarize = (attempts: AttemptLike[]) => {
 
 class StatsController {
     // Everything this user has ever played, grouped per quiz.
-    async mine(req: AuthenticatedRequest, res: Response) {
+    async mine(req: RequestWithUser, res: Response) {
         if (!req.user) {
             return res.status(401).json({ message: "Not authorised" });
         }
@@ -88,7 +88,7 @@ class StatsController {
     }
 
     // One user's history on one quiz.
-    async forQuiz(req: AuthenticatedRequest, res: Response) {
+    async forQuiz(req: RequestWithUser, res: Response) {
         if (!req.user) {
             return res.status(401).json({ message: "Not authorised" });
         }

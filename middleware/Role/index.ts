@@ -1,10 +1,10 @@
 import type { NextFunction, Response } from "express";
 import * as jwt from "jsonwebtoken";
-import { readToken, toTokenUser, type AuthenticatedRequest } from "../Token";
+import { readToken, toTokenUser, type RequestWithUser } from "../Token";
 
 export default function (role: string) {
     return function (
-        req: AuthenticatedRequest,
+        req: RequestWithUser,
         res: Response,
         next: NextFunction,
     ) {
