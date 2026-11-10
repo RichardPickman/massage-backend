@@ -259,19 +259,11 @@ class LectureController {
         return;
     }
 
+    // Always one page: a request carrying no parameters asks for page 1 at the
+    // default size, so no client has to send a parameter to get an answer it
+    // can read.
     async getAll(req: RequestWithUser, res: Response) {
         const query = readPageQuery(req.query);
-
-        // A request carrying no page parameters keeps answering the payload the
-        // current client expects, so this backend can deploy before the
-        // frontend knows about pages.
-        if (!query.paginated) {
-            const getItems = await LectureResolver.findAll();
-
-            res.json({ message: "return lectures", payload: getItems });
-
-            return;
-        }
 
         const page = await LectureResolver.findPage(query);
 

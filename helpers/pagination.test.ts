@@ -2,39 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { countPages, pageRange, readPageQuery } from "./pagination.ts";
 
-test("reads a request with no parameters as the legacy one", () => {
-  assert.deepEqual(readPageQuery({}), {
-    page: 1,
-    limit: 10,
-    paginated: false,
-  });
-});
+test("answers a bare request exactly like page 1 of the default size", () => {
+  const first = { page: 1, limit: 10 };
 
-test("treats a missing query object as the legacy one", () => {
-  assert.equal(readPageQuery(undefined).paginated, false);
-  assert.equal(readPageQuery(null).page, 1);
+  assert.deepEqual(readPageQuery({}), first);
+  assert.deepEqual(readPageQuery(undefined), first);
+  assert.deepEqual(readPageQuery(null), first);
 });
 
 test("reads page and limit", () => {
   assert.deepEqual(readPageQuery({ page: "2", limit: "25" }), {
     page: 2,
     limit: 25,
-    paginated: true,
   });
 });
 
-test("treats one parameter on its own as a paged request", () => {
-  assert.deepEqual(readPageQuery({ page: "3" }), {
-    page: 3,
-    limit: 10,
-    paginated: true,
-  });
-
-  assert.deepEqual(readPageQuery({ limit: "12" }), {
-    page: 1,
-    limit: 12,
-    paginated: true,
-  });
+test("defaults the parameter a request leaves out", () => {
+  assert.deepEqual(readPageQuery({ page: "3" }), { page: 3, limit: 10 });
+  assert.deepEqual(readPageQuery({ limit: "12" }), { page: 1, limit: 12 });
 });
 
 test("falls back to page 1 for values that are not whole positive numbers", () => {
@@ -58,7 +43,6 @@ test("ignores a parameter sent twice", () => {
   assert.deepEqual(readPageQuery({ page: ["1", "9"], limit: ["10", "20"] }), {
     page: 1,
     limit: 10,
-    paginated: true,
   });
 });
 

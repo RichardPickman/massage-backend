@@ -56,14 +56,8 @@ class QuizService {
     return quiz?.toObject();
   }
 
-  async findAll() {
-    // The quiz schema has no timestamps, so `_id` is the only ordering that
-    // reflects insertion order and does not shuffle between two requests.
-    const quizzes = await quizModel.find({}).sort({ _id: -1 });
-
-    return quizzes;
-  }
-
+  // The quiz schema has no timestamps, so `_id` is the only ordering that
+  // reflects insertion order and does not shuffle between two requests.
   async findPage(query: PageQuery) {
     const total = await quizModel.countDocuments({});
     const range = pageRange(query, total);

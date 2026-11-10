@@ -4,9 +4,6 @@
 export interface PageQuery {
   page: number;
   limit: number;
-  // False when neither parameter was sent, which keeps the unpaged payload
-  // available until every client asks for pages.
-  paginated: boolean;
 }
 
 export interface PageRange {
@@ -35,7 +32,6 @@ export const readPageQuery = (query: unknown): PageQuery => {
   return {
     page: toCount(source.page) ?? 1,
     limit: Math.min(limit, maxLimit),
-    paginated: source.page !== undefined || source.limit !== undefined,
   };
 };
 

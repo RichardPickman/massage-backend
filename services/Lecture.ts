@@ -32,14 +32,8 @@ class LectureService {
     return lecture;
   }
 
-  async findAll() {
-    // Newest first, so the unpaged list and any page of the paged one agree on
-    // order. `_id` ordering matches insertion order for this collection.
-    const lectures = await lectureModel.find({}).sort({ _id: -1 });
-
-    return lectures;
-  }
-
+  // Newest first, so a page's rows keep their order as the archive grows:
+  // `_id` ordering matches insertion order for this collection.
   async findPage(query: PageQuery) {
     const total = await lectureModel.countDocuments({});
     const range = pageRange(query, total);

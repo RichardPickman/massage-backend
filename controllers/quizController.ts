@@ -166,18 +166,11 @@ class QuizController {
         });
     }
 
+    // Always one page: a request carrying no parameters asks for page 1 at the
+    // default size, so no client has to send a parameter to get an answer it
+    // can read.
     async getAll(req: RequestWithUser, res: Response) {
         const query = readPageQuery(req.query);
-
-        // The unpaged payload stays until every client sends a page, which is
-        // what lets this deploy without touching the frontend.
-        if (!query.paginated) {
-            const getItems = await QuizResolver.findAll();
-
-            res.json({ message: "return quizes", payload: getItems });
-
-            return;
-        }
 
         const page = await QuizResolver.findPage(query);
 
