@@ -50,6 +50,24 @@ export const getInviteConfig = (): InviteConfig => ({
   adminEmails: (process.env.ADMIN_EMAILS as string) || "",
 });
 
+// The variables without which the app cannot do its job. INVITE_SECRET and
+// ADMIN_EMAILS are deliberately absent: leaving them unset closes registration
+// to everyone but the bootstrap addresses, which is a valid deployment rather
+// than a mistake.
+const requiredKeys = [
+  "DB_USER",
+  "DB_PASSWORD",
+  "DB_HOST",
+  "DB",
+  "PORT",
+  "SECRET_KEY",
+] as const;
+
+// Pure, so it can be tested against fabricated environments: a spec that reads
+// the real one would pass or fail depending on who runs it.
+export const getMissingConfig = (env: NodeJS.ProcessEnv) =>
+  requiredKeys.filter((key) => !String(env[key] ?? "").trim());
+
 type ThrottleConfig = {
   limit: number;
   windowMs: number;

@@ -1,11 +1,28 @@
 import "./helpers/slowBufferCompat";
 const cors = require("cors");
-import { getServerConfig } from "./config";
+import { getMissingConfig, getServerConfig } from "./config";
 import router from "./routes";
 import errorHandler from "./middleware/ErrorHandle/index";
 import logger from "./middleware/log/index";
-import "./model/db";
 const e = require("express");
+
+const missing = getMissingConfig(process.env);
+
+// Refusing to start beats starting and answering every request with a 500 that
+// names a driver error instead of the variable nobody set.
+if (missing.length > 0) {
+    console.error(
+        `Refusing to start: ${missing.join(", ")} ${
+            missing.length === 1 ? "is" : "are"
+        } not set. See .env.example.`,
+    );
+    process.exit(1);
+}
+
+// Required here rather than with the imports above: imports run before the first
+// line of this file, so importing it up there would open a connection before the
+// environment had been checked.
+require("./model/db");
 
 const { port } = getServerConfig();
 const app = e();
