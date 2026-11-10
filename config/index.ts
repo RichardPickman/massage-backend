@@ -19,6 +19,11 @@ type BucketConfig = {
   bucketname: string;
 };
 
+type InviteConfig = {
+  secret: string;
+  adminEmails: string;
+};
+
 config();
 
 export const getConfig = (): dbConfig => ({
@@ -38,4 +43,9 @@ export const getBucketConfig = (): BucketConfig => ({
   secretkey: process.env.BUCKET_SECRET_KEY as string,
   region: process.env.BUCKET_REGION as string,
   bucketname: process.env.BUCKET_NAME as string,
+});
+
+export const getInviteConfig = (): InviteConfig => ({
+  secret: (process.env.INVITE_SECRET as string) || "",
+  adminEmails: (process.env.ADMIN_EMAILS as string) || "",
 });
