@@ -12,9 +12,12 @@ class QuizService {
       result.map((question) => (question ? question._id : null))
     );
 
+    // The controller supplies the signed-in user. Dropping it here left every
+    // quiz ownerless, so the ownership checks could never pass for its author.
     const createQuiz = await new quizModel({
       questions: questions,
       title: props.title,
+      author: props.author,
     }).save();
 
     const createdQuiz = await this.find(createQuiz._id);
