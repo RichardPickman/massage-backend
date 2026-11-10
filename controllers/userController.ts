@@ -3,6 +3,8 @@ import type { Response } from "express";
 import * as jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
 import ApiError from "../Error";
+import { getInviteConfig } from "../config";
+import { decideRegistration, normalizeEmail } from "../helpers/invite";
 import type { RequestWithUser } from "../middleware/Token";
 import UserResolver from "../services/User";
 
@@ -14,34 +16,72 @@ function generateJWT(id: ObjectId | string, email: string, role: string) {
     );
 }
 
+// Accounts made before addresses were normalised can hold mixed case, so a miss
+// on the normalised form tries the address as typed before giving up. Without
+// this, normalising would quietly lock out anyone whose address had a capital.
+const findAccount = async (email: string, address: string) => {
+    const account = await UserResolver.find({ email: address });
+
+    if (account || !email) {
+        return account;
+    }
+
+    return email === address ? null : UserResolver.find({ email });
+};
+
 class UserController {
     async registration(req: RequestWithUser, res: Response, next: any) {
-        const { user, email, password } = req.body;
+        const { user, email, password, code } = req.body;
 
         if (!email || !password) {
             return next(ApiError.internal("Incorrect input"));
         }
 
-        const candidate = await UserResolver.find({ email });
+        // One answer for every refusal below. A wrong code, a missing code and an
+        // address that already exists have to be indistinguishable, or the
+        // endpoint becomes a way to ask who has an account.
+        const refused = ApiError.forbidden(
+            "This address needs a valid invite code to register",
+        );
 
-        if (candidate) {
-            return next(
-                ApiError.forbidden("User with provided email already exist"),
-            );
-        }
-
-        const hashPassword = await bcrypt.hash(password, 5);
-
-        // The client never picks its own role: self-registration is always a user.
-        // Admins are promoted out of band, never through this endpoint.
-        const createUser = await UserResolver.create({
-            user,
+        const { secret, adminEmails } = getInviteConfig();
+        const decision = decideRegistration({
             email,
-            password: hashPassword,
-            role: "user",
+            code,
+            secret,
+            adminEmails,
         });
 
-        const token = generateJWT(createUser?._id as ObjectId, email, "user");
+        if (!decision.allowed) {
+            return next(refused);
+        }
+
+        const address = normalizeEmail(email);
+        const candidate = await UserResolver.find({ email: address });
+
+        // Only once the caller has proved they were invited, so a refused attempt
+        // never reads the collection.
+        if (candidate) {
+            return next(refused);
+        }
+
+        // Cost 10 where this used to hash at 5: one hash per registration, so the
+        // extra time costs the user nothing they notice and buys real resistance.
+        const hashPassword = await bcrypt.hash(password, 10);
+
+        // The role comes from the gate, never from the request body.
+        const createUser = await UserResolver.create({
+            user,
+            email: address,
+            password: hashPassword,
+            role: decision.role,
+        });
+
+        const token = generateJWT(
+            createUser?._id as ObjectId,
+            address,
+            decision.role,
+        );
 
         res.json({ token });
 
@@ -50,8 +90,9 @@ class UserController {
 
     async login(req: RequestWithUser, res: Response, next: any) {
         const { email, password } = req.body;
+        const address = normalizeEmail(email);
 
-        const user = await UserResolver.find({ email });
+        const user = await findAccount(email, address);
 
         if (!user) {
             return next(
@@ -70,7 +111,7 @@ class UserController {
 
         const token = generateJWT(
             user?._id as ObjectId,
-            email,
+            user.email as string,
             user.role as string,
         );
 

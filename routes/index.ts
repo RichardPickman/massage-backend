@@ -1,4 +1,5 @@
 // import Router from "express";
+import adminRouter from "./adminRouter";
 import userRouter from "./userRouter";
 import quizRouter from "./quizRouter";
 import lectureRouter from "./lectureRouter";
@@ -12,6 +13,7 @@ const e = require("express");
 const router = e();
 
 router.use("/users", userRouter);
+router.use("/admin", adminRouter);
 router.use("/quiz", quizRouter);
 router.use("/lectures", lectureRouter);
 router.use("/question", questionRouter);

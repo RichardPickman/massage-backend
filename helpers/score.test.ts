@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { scoreAttempt } from "./score.ts";
+import { scoreAttempt } from "./score";
 
 const questions = [
   { _id: "q1", correctAnswers: ["a"] },
