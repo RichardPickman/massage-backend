@@ -24,3 +24,14 @@ npm run invite -- someone@example.com
 ```
 
 Needs no database and no running app, and it prints the code for that exact address.
+
+## Promoting an existing account
+
+A person's role is decided once, when the account is created. Adding their address to `ADMIN_EMAILS` later does nothing — that list is only read at registration — so an account that already exists keeps the role it was given.
+
+```
+npm run promote -- someone@example.com           # -> admin
+npm run promote -- someone@example.com --user    # -> back to user
+```
+
+Then sign out and sign in again: the role travels inside the token, and a page reload only refreshes the claims of the token already held. This is the only supported way to change a role, besides removing the account and letting the person register again.
