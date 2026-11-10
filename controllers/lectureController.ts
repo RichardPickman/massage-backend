@@ -9,6 +9,7 @@ import type { Response } from "express";
 import { getBucketConfig } from "../config";
 
 import { getFormattedBuffer, getRandomName } from "../helpers";
+import { readPageQuery } from "../helpers/pagination";
 
 import type { RequestWithUser } from "../middleware/Token";
 import LectureResolver from "../services/Lecture";
@@ -259,9 +260,22 @@ class LectureController {
     }
 
     async getAll(req: RequestWithUser, res: Response) {
-        const getItems = await LectureResolver.findAll();
+        const query = readPageQuery(req.query);
 
-        res.json({ message: "return lectures", payload: getItems });
+        // A request carrying no page parameters keeps answering the payload the
+        // current client expects, so this backend can deploy before the
+        // frontend knows about pages.
+        if (!query.paginated) {
+            const getItems = await LectureResolver.findAll();
+
+            res.json({ message: "return lectures", payload: getItems });
+
+            return;
+        }
+
+        const page = await LectureResolver.findPage(query);
+
+        res.json({ message: "return lectures", payload: page });
 
         return;
     }

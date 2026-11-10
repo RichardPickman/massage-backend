@@ -2,6 +2,7 @@ import type { Response } from "express";
 import { replaceNameToLink } from "./helpers";
 
 import ApiError from "../Error";
+import { readPageQuery } from "../helpers/pagination";
 import {
     scoreAttempt,
     type StoredQuestion,
@@ -166,9 +167,21 @@ class QuizController {
     }
 
     async getAll(req: AuthenticatedRequest, res: Response) {
-        const getItems = await QuizResolver.findAll();
+        const query = readPageQuery(req.query);
 
-        res.json({ message: "return quizes", payload: getItems });
+        // The unpaged payload stays until every client sends a page, which is
+        // what lets this deploy without touching the frontend.
+        if (!query.paginated) {
+            const getItems = await QuizResolver.findAll();
+
+            res.json({ message: "return quizes", payload: getItems });
+
+            return;
+        }
+
+        const page = await QuizResolver.findPage(query);
+
+        res.json({ message: "return quizes", payload: page });
     }
 
     // Scores the submission against the stored questions. The client is never

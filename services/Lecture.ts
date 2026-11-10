@@ -1,3 +1,4 @@
+import { pageRange, type PageQuery } from "../helpers/pagination";
 import lectureModel from "../model/schemes/Lecture";
 
 class LectureService {
@@ -32,9 +33,30 @@ class LectureService {
   }
 
   async findAll() {
-    const lectures = await lectureModel.find({});
+    // Newest first, so the unpaged list and any page of the paged one agree on
+    // order. `_id` ordering matches insertion order for this collection.
+    const lectures = await lectureModel.find({}).sort({ _id: -1 });
 
     return lectures;
+  }
+
+  async findPage(query: PageQuery) {
+    const total = await lectureModel.countDocuments({});
+    const range = pageRange(query, total);
+
+    const lectures = await lectureModel
+      .find({})
+      .sort({ _id: -1 })
+      .skip(range.skip)
+      .limit(query.limit);
+
+    return {
+      items: lectures,
+      total,
+      page: range.page,
+      limit: query.limit,
+      pages: range.pages,
+    };
   }
 }
 

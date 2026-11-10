@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { pageRange, type PageQuery } from "../helpers/pagination";
 import quizModel from "../model/schemes/Quiz";
 import Question from "./Question";
 
@@ -56,9 +57,30 @@ class QuizService {
   }
 
   async findAll() {
-    const quizzes = await quizModel.find({});
+    // The quiz schema has no timestamps, so `_id` is the only ordering that
+    // reflects insertion order and does not shuffle between two requests.
+    const quizzes = await quizModel.find({}).sort({ _id: -1 });
 
     return quizzes;
+  }
+
+  async findPage(query: PageQuery) {
+    const total = await quizModel.countDocuments({});
+    const range = pageRange(query, total);
+
+    const quizzes = await quizModel
+      .find({})
+      .sort({ _id: -1 })
+      .skip(range.skip)
+      .limit(query.limit);
+
+    return {
+      items: quizzes,
+      total,
+      page: range.page,
+      limit: query.limit,
+      pages: range.pages,
+    };
   }
 }
 
