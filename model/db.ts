@@ -2,12 +2,17 @@ import mongoose from 'mongoose';
 import { getConfig } from '../config';
 
 const { username, password, hostname, database } = getConfig();
-const dbURI = `mongodb+srv://${username}:${password}@${hostname}/${database}?retryWrites=true&w=majority`; 
+// Encoded, because a generated password containing @ or : silently turns into a
+// different URI and the failure looks like a network problem, not a typo.
+const dbURI = `mongodb+srv://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${hostname}/${database}?retryWrites=true&w=majority`;
  
 mongoose.connect(dbURI);
 
+// Prints where it connected, never the credentials it connected with: this
+// line used to include the whole URI, so every boot put the database password
+// in the logs.
 mongoose.connection.on('connected', function () {
-  console.log('Mongoose default connection open to ' + dbURI);
+  console.log('Mongoose default connection open to ' + hostname + '/' + database);
 }); 
   
 mongoose.connection.on('error',function (err) { 
