@@ -1,0 +1,67 @@
+# Two containers. Caddy is the only one with an open port; it serves the static
+# build and forwards /api to the API, which stays on the compose network.
+#
+# Mongo is not here on purpose: model/db.ts connects to an Atlas cluster, so the
+# database lives outside this machine and survives a rebuild of it.
+
+name: massage
+
+services:
+  api:
+    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-backend:${TAG:-latest}
+    build:
+      context: ..
+    restart: unless-stopped
+    init: true
+
+    # One .env does both jobs: compose reads DOMAIN/TAG out of it for
+    # interpolation below, and this line hands the secrets to the container.
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "8280"
+      # Caddy is in front of the API, so the auth limiter must read the caller
+      # from X-Forwarded-For. Set here rather than in .env because it is a
+      # property of this deployment, not a secret.
+      TRUST_PROXY: "1"
+
+    # Multer stages every upload in ./static/lectures and nothing ever deletes it.
+    # A tmpfs caps it at 256 MB of RAM that vanishes with the container, instead
+    # of a volume that grows until the 40 GB disk is full.
+    tmpfs:
+      - /app/static:size=256m,mode=1777
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8280/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  web:
+    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-web:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is not set - put the hostname in .env}
+      API_UPSTREAM: http://api:8280
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  # Certificates live here. Losing it means re-issuing on the next boot, which
+  # Let's Encrypt rate-limits, so it is a named volume and not a container path.
+  caddy_data:
+  caddy_config:

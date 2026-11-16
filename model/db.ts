@@ -6,7 +6,14 @@ const { username, password, hostname, database } = getConfig();
 // different URI and the failure looks like a network problem, not a typo.
 const dbURI = `mongodb+srv://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${hostname}/${database}?retryWrites=true&w=majority`;
  
-mongoose.connect(dbURI);
+// The promise is handled: an initial connect can fail without being a bug - an
+// Atlas IP allowlist miss, an outage, a typo in the host - and an unhandled
+// rejection is fatal on Node 15+, which would exit the process and put a
+// container into a restart loop. The driver keeps retrying in the background, so
+// staying up and logging is both more honest and more useful than dying.
+mongoose.connect(dbURI).catch(function (err) {
+  console.log('Mongoose initial connection failed: ' + err);
+});
 
 // Prints where it connected, never the credentials it connected with: this
 // line used to include the whole URI, so every boot put the database password
