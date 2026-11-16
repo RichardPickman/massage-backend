@@ -5,8 +5,10 @@
   "scripts": {
     "api:build": "rm -rf build && tsc -p tsconfig.json --outDir build/ --noEmit false",
     "api:dev": "nodemon index.ts",
+    "invite": "ts-node scripts/invite.ts",
+    "promote": "ts-node scripts/promote.ts",
     "start": "node build/index.js",
-    "test": "node --test",
+    "test": "node --test -r ts-node/register",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "keywords": [],
