@@ -5,11 +5,16 @@
   "scripts": {
     "api:build": "rm -rf build && tsc -p tsconfig.json --outDir build/ --noEmit false",
     "api:dev": "nodemon index.ts",
-    "test": "node --test"
+    "start": "node build/index.js",
+    "test": "node --test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=26"
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.208.0",
     "@aws-sdk/s3-request-presigner": "^3.208.0",
