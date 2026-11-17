@@ -1,0 +1,17 @@
+# Anything the build produces itself, or that must never enter an image.
+node_modules
+build
+static
+*.tsbuildinfo
+
+# Secrets arrive at run time through compose, never through a layer.
+.env
+.env.*
+
+# Not needed to compile or run.
+.git
+.github
+.scratch
+README.md
+Dockerfile
+.dockerignore

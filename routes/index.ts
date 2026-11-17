@@ -1,4 +1,5 @@
 // import Router from "express";
+import healthRouter from "./health";
 import adminRouter from "./adminRouter";
 import userRouter from "./userRouter";
 import quizRouter from "./quizRouter";
@@ -12,6 +13,7 @@ const e = require("express");
 
 const router = e();
 
+router.use("/health", healthRouter);
 router.use("/users", userRouter);
 router.use("/admin", adminRouter);
 router.use("/quiz", quizRouter);

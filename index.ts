@@ -41,4 +41,17 @@ app.use(logger);
 app.use("/api", router);
 app.use(errorHandler);
 
+// Express 4 does not forward a rejected promise from an async handler, so the
+// rejection arrives here instead of at the error handler above. Unhandled, Node
+// 15+ treats it as fatal and exits - which is how a database outage turns into a
+// container that crash-loops instead of one that keeps answering /api/health.
+// Until the handlers are wrapped so their rejections reach errorHandler, this
+// keeps the process serving and puts the error in the log where a deploy can see
+// it. A request whose handler rejected still gets no response, so treat a dropped
+// connection on a database-backed route as "Mongo is unreachable", not "the app
+// is gone".
+process.on("unhandledRejection", (reason) => {
+    console.error("Unhandled rejection:", reason);
+});
+
 app.listen(port, () => console.log(`Server started on port ${port}`));
