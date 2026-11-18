@@ -25,8 +25,10 @@ jobs:
   promote:
     name: promote
     runs-on: ubuntu-latest
-    # Secret scoping, not an approval gate: production's key and address are only
-    # visible to a job that names this environment.
+    # The environment scopes the credential: this one holds its own SSH_KEY, and its
+    # deployment rule admits master only, so a dispatch from any other ref is
+    # refused before it sees the secret. Not an approval gate - there is nobody to
+    # approve a solo operator's own run.
     environment: production
     timeout-minutes: 20
     permissions:

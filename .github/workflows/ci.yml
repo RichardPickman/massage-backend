@@ -96,8 +96,11 @@ jobs:
     # request has no tag to pull and no stack that should see it.
     if: github.event_name == 'push' && github.ref_name == 'testing'
     runs-on: ubuntu-latest
-    # Secret scoping: staging and production hold different keys and addresses, so
-    # this job cannot reach the live stack.
+    # The environment is what scopes the credential: each holds its own SSH_KEY, and
+    # its deployment rule admits only the branch that feeds it - testing here - so a
+    # run on any other ref is refused before it sees the secret. Host, user and host
+    # key are repository-level: one box, both stacks, and no credential in those
+    # three.
     environment: staging
     # A cancelled deploy leaves .env naming a commit that is not running, so the
     # next one waits rather than interrupting.
