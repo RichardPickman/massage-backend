@@ -3,12 +3,17 @@
 #
 # Mongo is not here on purpose: model/db.ts connects to an Atlas cluster, so the
 # database lives outside this machine and survives a rebuild of it.
+#
+# Each image is addressed by its own tag, held in .env: the frontend and the API
+# ship on their own schedules, so deploying a commit of one must not move the
+# other. TAG still sets both when the split tags are absent, which is how this
+# file ran before they existed.
 
 name: massage
 
 services:
   api:
-    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-backend:${TAG:-latest}
+    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-backend:${API_TAG:-${TAG:-latest}}
     build:
       context: ..
     restart: unless-stopped
@@ -44,7 +49,7 @@ services:
       start_period: 20s
 
   web:
-    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-web:${TAG:-latest}
+    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-web:${WEB_TAG:-${TAG:-latest}}
     restart: unless-stopped
     depends_on:
       api:
