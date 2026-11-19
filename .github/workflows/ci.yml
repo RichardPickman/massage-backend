@@ -2,12 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    # master is production and testing is the integration branch. An image only
+    # ever comes from a push to one of these, never from a pull request.
+    branches: [master, testing]
   pull_request:
+  # Lets the image be built from a throwaway branch, so the registry path can
+  # be exercised before it is trusted with a deploy.
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A pull request's run is throwaway, so a new push may cancel it. A branch push
+  # is not: cancelling one mid-deploy would leave the stack's .env naming a commit
+  # that is not the one running.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   gate:
@@ -27,3 +38,108 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm api:build
+
+  # The artefact a deploy pulls. Every tag names a commit, so the TAG in a
+  # stack's .env states exactly which code is running and a rollback is writing
+  # an older one.
+  publish:
+    name: publish
+    needs: gate
+    # A pull request must never move a tag that a running stack resolves.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: meta
+        name: Work out the tags
+        run: |
+          short="$(git rev-parse --short=7 HEAD)"
+          tags="ghcr.io/richardpickman/massage-backend:sha-${short}"
+          # Only the integration branch carries a moving tag.
+          # Production is promoted by digest, so no push can drag it.
+          if [ "${GITHUB_REF_NAME}" = "testing" ]; then
+            tags="${tags}"$'\n'"ghcr.io/richardpickman/massage-backend:testing"
+          fi
+          {
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Deploys the API container to the rehearsal stack. massage has a twin of this
+  # job for the web container, and neither can restart the other's container.
+  deploy-staging:
+    name: deploy staging
+    needs: publish
+    # A push to the integration branch is the only thing that deploys: a pull
+    # request has no tag to pull and no stack that should see it.
+    if: github.event_name == 'push' && github.ref_name == 'testing'
+    runs-on: ubuntu-latest
+    # The environment is what scopes the credential: each holds its own SSH_KEY, and
+    # its deployment rule admits only the branch that feeds it - testing here - so a
+    # run on any other ref is refused before it sees the secret. Host, user and host
+    # key are repository-level: one box, both stacks, and no credential in those
+    # three.
+    environment: staging
+    # A cancelled deploy leaves .env naming a commit that is not running, so the
+    # next one waits rather than interrupting.
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack the key and pin the host
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          # Pinned, not scanned: ssh-keyscan trusts whatever answers first, which
+          # is the one thing worth checking.
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # A non-default port is keyed as [host]:port in known_hosts. The secret
+          # holds the plain form, so build the port-scoped line here instead of
+          # keeping a second copy that can drift away from the first.
+          port="${SSH_PORT:-49152}"
+          if [ "$port" != "22" ]; then
+            awk -v p="$port" '{ if ($1 !~ /^\[/) $1 = "[" $1 "]:" p; print }' \
+              ~/.ssh/known_hosts > ~/.ssh/known_hosts.port
+            cat ~/.ssh/known_hosts.port >> ~/.ssh/known_hosts
+          fi
+
+      - name: Point the stack at this commit and restart api
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          # This host answers ssh over IPv4 only on a non-default port; 22 is
+          # IPv6-only, so a runner that assumes 22 gets "Connection refused".
+          ssh -i ~/.ssh/deploy -p "${SSH_PORT:-49152}" "$SSH_USER@$SSH_HOST" \
+              "bash -s -- staging api ${{ github.sha }}" < scripts/deploy.sh

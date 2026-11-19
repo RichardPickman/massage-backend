@@ -74,6 +74,27 @@ exists — use the script, then sign out and back in:
 docker compose exec api node build/scripts/promote.js you@example.com
 ```
 
+## Staging
+
+`staging/` is the same two images with `name: massage-staging`, so it is a second
+compose project beside the live one: its own containers, its own `caddy_data`
+volume, its own database (`DB` here names a second database on the same Atlas
+cluster) and its own bucket. Reached on **8443** with a certificate from Caddy's
+own CA instead of Let's Encrypt, which is why the browser warns once per device.
+
+```bash
+cd massage-backend/deploy/staging
+cp .env.example .env              # then fill in DB_*, SECRET_KEY, BUCKET_*
+docker compose up -d --pull always
+curl -k https://DOMAIN:8443/api/health
+./reset.sh                        # wipe containers, volumes and the testing database
+```
+
+Both stacks read the tags they run from their own `.env`, and each image has its
+own (`WEB_TAG`, `API_TAG`): the frontend and the API ship on their own schedules,
+so deploying one must not move the other. Production's file also accepts a single
+`TAG` for both, which is what it ran on before the tags were split.
+
 ## Updating
 
 ```bash

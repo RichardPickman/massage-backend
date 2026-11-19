@@ -1,0 +1,79 @@
+# The rehearsal stack: the same two images as production, run as a second compose
+# project so nothing it does is visible to the live one. Caddy issues its own
+# certificate here (see Caddyfile) and only 8443 is published, so production
+# keeps 80 and 443 and the two never fight over a port or over a name.
+#
+# Unlike ../docker-compose.yml there is no `build:`. Staging exists to run the
+# images CI published, so building one here would rehearse the wrong thing.
+#
+# The data is separate too: a second database on the same Atlas cluster and a
+# second bucket, because S3 keys cannot be scoped to a prefix and a shared bucket
+# would let this stack read and delete production's uploads.
+#
+# WEB_TAG and API_TAG are read from .env, which is the state of record: the
+# deploy workflow writes the commit it built into them, so what is running is
+# written down and a rollback is editing a line.
+
+name: massage-staging
+
+services:
+  api:
+    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-backend:${API_TAG:-${TAG:-latest}}
+    restart: unless-stopped
+    init: true
+
+    # As in production: compose reads the tags out of this file for interpolation
+    # below, and the same file is handed to the container as its environment.
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "8280"
+      # Caddy is in front, so the auth limiter has to read the caller from
+      # X-Forwarded-For. Set here because it is a property of this deployment and
+      # not a secret.
+      TRUST_PROXY: "1"
+
+    # Multer stages uploads in ./static/lectures and nothing deletes them, so the
+    # directory is a tmpfs that empties with the container.
+    tmpfs:
+      - /app/static:size=256m,mode=1777
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8280/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  web:
+    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-web:${WEB_TAG:-${TAG:-latest}}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is not set - put the hostname in .env}
+      API_UPSTREAM: http://api:8280
+    ports:
+      # 443 belongs to production. This stack answers on 8443 and never binds 80:
+      # the certificate comes from Caddy's own CA, so there is no challenge to
+      # answer and no HTTP/3 worth advertising.
+      - "8443:443"
+    volumes:
+      # The image carries production's Caddyfile at this path; this mount replaces
+      # it with the same routing plus `tls internal`.
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  # Held apart from production's by the project name, and worth keeping: this is
+  # the CA that every device in the house was told to trust. Delete it and the
+  # next boot mints a new root, which every device warns about again.
+  caddy_data:
+  caddy_config:

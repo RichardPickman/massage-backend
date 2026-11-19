@@ -1,0 +1,43 @@
+# The same routing as the Caddyfile baked into the web image, with the one
+# difference that matters: `tls internal` issues a certificate from Caddy's own
+# CA instead of asking Let's Encrypt for a name that production is already
+# serving on 443. A real challenge would either fail or hand this stack the live
+# certificate, and neither is what a rehearsal wants.
+#
+# Every device shows a warning the first time. Once accepted the origin is a
+# secure context, which is what the app needs in order to exercise the parts of
+# the browser API that only exist over https.
+
+{$DOMAIN:localhost} {
+	tls internal
+
+	encode zstd gzip
+
+	# The API already answers under /api, so nothing is rewritten: the backend
+	# mounts its router at /api in development too, and the paths must match.
+	handle /api/* {
+		reverse_proxy {$API_UPSTREAM:api:8280}
+	}
+
+	# SPA: any path that is not a file on disk is the app's own route, which is
+	# what createBrowserRouter needs for a deep link into /lectures/:id.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Vite fingerprints everything under /assets, so those can never go stale.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

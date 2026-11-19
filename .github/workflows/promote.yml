@@ -1,0 +1,115 @@
+name: Promote
+
+# The only way into production, and it is a person naming a commit. No push
+# reaches the live stack: this takes a sha that already ran on staging, moves the
+# registry's production tag onto that exact image, and points the live stack at
+# it. Nothing is rebuilt, so what production runs is byte for byte what was
+# tested on 8443.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full sha of the commit that is running on staging
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: promote
+    runs-on: ubuntu-latest
+    # The environment scopes the credential: this one holds its own SSH_KEY, and its
+    # deployment rule admits master only, so a dispatch from any other ref is
+    # refused before it sees the secret. Not an approval gate - there is nobody to
+    # approve a solo operator's own run.
+    environment: production
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/richardpickman/massage-backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # master, because that is what the box runs and where the deploy script
+          # is read from.
+          ref: master
+          fetch-depth: 0
+
+      - id: verify
+        name: Check the commit is one production may run
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          git rev-parse --verify --quiet "$SHA^{commit}" > /dev/null || {
+              echo "$SHA is not a commit in this repository" >&2
+              exit 1
+          }
+          # Without this, a promotion is a way around the branch model: anything
+          # built on staging could reach the live stack. It has to be merged to
+          # master first.
+          git merge-base --is-ancestor "$SHA" origin/master || {
+              echo "$SHA is not on master - merge the testing branch first, so production only ever runs reviewed code" >&2
+              exit 1
+          }
+          echo "short=$(git rev-parse --short=7 "$SHA")" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Move the production tag onto the tested image
+        env:
+          SHORT: ${{ steps.verify.outputs.short }}
+        run: |
+          # Fails here, loudly, if this commit never made it out of CI - rather
+          # than leaving the stack pointing at a tag nobody built.
+          docker buildx imagetools inspect "$IMAGE:sha-$SHORT" > /dev/null
+
+          # A manifest copy, not a rebuild: the digest stays the same, so the bytes
+          # production pulls are the bytes that were tested.
+          docker buildx imagetools create -t "$IMAGE:production" "$IMAGE:sha-$SHORT"
+
+          {
+              echo "$IMAGE:production -> sha-$SHORT"
+              echo "digest $(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$IMAGE:production")"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Unpack the key and pin the host
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # Same reason as ci.yml: a non-default port is keyed as [host]:port.
+          port="${SSH_PORT:-49152}"
+          if [ "$port" != "22" ]; then
+            awk -v p="$port" '{ if ($1 !~ /^\[/) $1 = "[" $1 "]:" p; print }' \
+              ~/.ssh/known_hosts > ~/.ssh/known_hosts.port
+            cat ~/.ssh/known_hosts.port >> ~/.ssh/known_hosts
+          fi
+
+      - name: Point the live stack at that commit
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          ssh -i ~/.ssh/deploy -p "${SSH_PORT:-49152}" "$SSH_USER@$SSH_HOST" \
+              "bash -s -- production api ${{ inputs.sha }}" < scripts/deploy.sh
