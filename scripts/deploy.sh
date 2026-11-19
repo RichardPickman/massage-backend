@@ -76,15 +76,29 @@ docker compose up -d --no-deps "$service"
 # -k only for staging: its certificate comes from Caddy's own CA, while
 # production's is real and a certificate problem there must fail.
 domain="$(sed -n 's/^DOMAIN=//p' .env | head -1)"
-probe=(-s -f -o /dev/null --max-time 30)
+probe=(-s -f -o /dev/null --max-time 10)
 if [ "$stack" = staging ]; then
     probe+=(-k)
 fi
 
-curl "${probe[@]}" --resolve "$domain:$port:127.0.0.1" "https://$domain:$port/api/health" || {
-    echo "api did not answer /api/health on $domain:$port" >&2
+# `up -d` returns as soon as the container is created, and on the very first run
+# Caddy still has to mint a certificate before it answers at all. A single probe
+# therefore races the start and reports a failure that is only "not yet": the
+# first two deploys here failed exactly that way while the api was healthy.
+# Wait for the port instead of guessing - 20 attempts two seconds apart.
+answered=0
+for _ in $(seq 1 20); do
+    if curl "${probe[@]}" --resolve "$domain:$port:127.0.0.1" "https://$domain:$port/api/health"; then
+        answered=1
+        break
+    fi
+    sleep 2
+done
+
+if [ "$answered" != 1 ]; then
+    echo "api did not answer /api/health on $domain:$port after 40s" >&2
     docker compose logs --tail 40 api >&2
     exit 1
-}
+fi
 
 echo "$stack: api is running $tag (https://$domain:$port/api/health)"
