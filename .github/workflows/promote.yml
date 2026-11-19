@@ -91,16 +91,25 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
           chmod 600 ~/.ssh/deploy
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # Same reason as ci.yml: a non-default port is keyed as [host]:port.
+          port="${SSH_PORT:-49152}"
+          if [ "$port" != "22" ]; then
+            awk -v p="$port" '{ if ($1 !~ /^\[/) $1 = "[" $1 "]:" p; print }' \
+              ~/.ssh/known_hosts > ~/.ssh/known_hosts.port
+            cat ~/.ssh/known_hosts.port >> ~/.ssh/known_hosts
+          fi
 
       - name: Point the live stack at that commit
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
-          ssh -i ~/.ssh/deploy "$SSH_USER@$SSH_HOST" \
+          ssh -i ~/.ssh/deploy -p "${SSH_PORT:-49152}" "$SSH_USER@$SSH_HOST" \
               "bash -s -- production api ${{ inputs.sha }}" < scripts/deploy.sh

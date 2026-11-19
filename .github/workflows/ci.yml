@@ -115,6 +115,7 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
@@ -122,11 +123,23 @@ jobs:
           # Pinned, not scanned: ssh-keyscan trusts whatever answers first, which
           # is the one thing worth checking.
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # A non-default port is keyed as [host]:port in known_hosts. The secret
+          # holds the plain form, so build the port-scoped line here instead of
+          # keeping a second copy that can drift away from the first.
+          port="${SSH_PORT:-49152}"
+          if [ "$port" != "22" ]; then
+            awk -v p="$port" '{ if ($1 !~ /^\[/) $1 = "[" $1 "]:" p; print }' \
+              ~/.ssh/known_hosts > ~/.ssh/known_hosts.port
+            cat ~/.ssh/known_hosts.port >> ~/.ssh/known_hosts
+          fi
 
       - name: Point the stack at this commit and restart api
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
-          ssh -i ~/.ssh/deploy "$SSH_USER@$SSH_HOST" \
+          # This host answers ssh over IPv4 only on a non-default port; 22 is
+          # IPv6-only, so a runner that assumes 22 gets "Connection refused".
+          ssh -i ~/.ssh/deploy -p "${SSH_PORT:-49152}" "$SSH_USER@$SSH_HOST" \
               "bash -s -- staging api ${{ github.sha }}" < scripts/deploy.sh
