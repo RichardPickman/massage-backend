@@ -1,12 +1,26 @@
-# The same routing as the Caddyfile baked into the web image, with the one
-# difference that matters: `tls internal` issues a certificate from Caddy's own
-# CA instead of asking Let's Encrypt for a name that production is already
-# serving on 443. A real challenge would either fail or hand this stack the live
-# certificate, and neither is what a rehearsal wants.
+# The same routing as the Caddyfile baked into the web image, with two
+# differences that matter here.
+#
+# `tls internal` issues a certificate from Caddy's own CA instead of asking Let's
+# Encrypt for a name that production is already serving on 443. A real challenge
+# would either fail or hand this stack the live certificate, and neither is what a
+# rehearsal wants.
+#
+# HTTP/3 is off. This stack is published on 8443 while the container listens on
+# 443, so Caddy's alt-svc header advertises h3 on :443 - which is *production*. A
+# browser that follows it talks QUIC to the live stack while the page came from
+# staging, and then asks production for staging's asset names, gets the live
+# app's index.html back, and blocks it on the MIME type. Only h1 and h2 here.
 #
 # Every device shows a warning the first time. Once accepted the origin is a
 # secure context, which is what the app needs in order to exercise the parts of
 # the browser API that only exist over https.
+
+{
+	servers {
+		protocols h1 h2
+	}
+}
 
 {$DOMAIN:localhost} {
 	tls internal
@@ -19,17 +33,23 @@
 		reverse_proxy {$API_UPSTREAM:api:8280}
 	}
 
+	# Fingerprinted assets: immutable when present, and a 404 when not. Falling
+	# back to the shell here would answer a module request with HTML.
+	handle /assets/* {
+		root * /srv
+		file_server
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+
 	# SPA: any path that is not a file on disk is the app's own route, which is
-	# what createBrowserRouter needs for a deep link into /lectures/:id.
+	# what createBrowserRouter needs for a deep link into /lectures/:id. The shell
+	# is revalidated every load, so a deploy is visible on the next refresh.
 	handle {
 		root * /srv
 		try_files {path} /index.html
 		file_server
+		header Cache-Control "no-cache"
 	}
-
-	# Vite fingerprints everything under /assets, so those can never go stale.
-	@assets path /assets/*
-	header @assets Cache-Control "public, max-age=31536000, immutable"
 
 	header {
 		X-Content-Type-Options nosniff
