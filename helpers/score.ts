@@ -1,5 +1,12 @@
+export interface StoredAnswer {
+  id?: string | null;
+  text?: string | null;
+}
+
 export interface StoredQuestion {
   _id: string;
+  question?: string | null;
+  answers?: StoredAnswer[] | null;
   correctAnswers?: string[] | null;
 }
 
@@ -12,12 +19,21 @@ export interface QuestionResult {
   questionId: string;
   correct: boolean;
   correctAnswers: string[];
+  // Snapshot of the question as it looked when the attempt was submitted.
+  // Copied into the result so that editing or deleting the question later
+  // cannot rewrite what the student actually answered.
+  questionText: string;
+  answers: { id: string; text: string }[];
 }
 
 export interface AttemptScore {
   correctCount: number;
   questionCount: number;
   percent: number;
+  // null when the quiz carries no threshold - attempts made before the field
+  // existed - which is deliberately different from "failed".
+  threshold: number | null;
+  passed: boolean | null;
   results: QuestionResult[];
 }
 
@@ -34,9 +50,33 @@ const isExactMatch = (selected: string[], correct: string[]) => {
   return correct.every((id) => selectedSet.has(id));
 };
 
+// Rows written before the editor enforced the shape may miss ids or text, so
+// every field is coerced instead of trusted.
+const snapshotAnswers = (answers?: StoredAnswer[] | null) => {
+  if (!Array.isArray(answers)) {
+    return [];
+  }
+
+  const snapshot: { id: string; text: string }[] = [];
+
+  answers.forEach((answer) => {
+    if (!answer || typeof answer !== "object") {
+      return;
+    }
+
+    snapshot.push({
+      id: answer.id == null ? "" : String(answer.id),
+      text: answer.text == null ? "" : String(answer.text),
+    });
+  });
+
+  return snapshot;
+};
+
 export const scoreAttempt = (
   questions: StoredQuestion[],
-  answers: SubmittedAnswer[]
+  answers: SubmittedAnswer[],
+  threshold?: number | null
 ): AttemptScore => {
   const selectedByQuestion = new Map<string, string[]>();
 
@@ -60,6 +100,8 @@ export const scoreAttempt = (
       correct:
         correctAnswers.length > 0 && isExactMatch(selected, correctAnswers),
       correctAnswers,
+      questionText: question.question == null ? "" : String(question.question),
+      answers: snapshotAnswers(question.answers),
     };
   });
 
@@ -69,5 +111,18 @@ export const scoreAttempt = (
     ? Math.round((correctCount / questionCount) * 100)
     : 0;
 
-  return { correctCount, questionCount, percent, results };
+  // Exactly on the boundary passes: "threshold 50" has to mean that 50 percent
+  // gets you through, otherwise the number shown to the author is a lie.
+  const hasThreshold =
+    typeof threshold === "number" && Number.isFinite(threshold);
+  const passed = hasThreshold ? percent >= threshold : null;
+
+  return {
+    correctCount,
+    questionCount,
+    percent,
+    threshold: hasThreshold ? threshold : null,
+    passed,
+    results,
+  };
 };
