@@ -90,6 +90,104 @@ test("handles an empty quiz", () => {
     correctCount: 0,
     questionCount: 0,
     percent: 0,
+    threshold: null,
+    passed: null,
     results: [],
   });
+});
+
+test("passes exactly on the threshold", () => {
+  const result = scoreAttempt(
+    [
+      { _id: "q1", correctAnswers: ["a"] },
+      { _id: "q2", correctAnswers: ["b"] },
+    ],
+    [
+      { questionId: "q1", selected: ["a"] },
+      { questionId: "q2", selected: [] },
+    ],
+    50
+  );
+
+  assert.equal(result.percent, 50);
+  assert.equal(result.threshold, 50);
+  assert.equal(result.passed, true);
+});
+
+test("fails below the threshold", () => {
+  const result = scoreAttempt(
+    [
+      { _id: "q1", correctAnswers: ["a"] },
+      { _id: "q2", correctAnswers: ["b"] },
+      { _id: "q3", correctAnswers: ["c"] },
+    ],
+    [{ questionId: "q1", selected: ["a"] }],
+    50
+  );
+
+  assert.equal(result.percent, 33);
+  assert.equal(result.passed, false);
+});
+
+test("reports no verdict when the quiz has no threshold", () => {
+  const result = scoreAttempt([{ _id: "q1", correctAnswers: ["a"] }], [
+    { questionId: "q1", selected: ["a"] },
+  ]);
+
+  assert.equal(result.threshold, null);
+  assert.equal(result.passed, null);
+});
+
+test("snapshots the question text and answers into the result", () => {
+  const result = scoreAttempt(
+    [
+      {
+        _id: "q1",
+        question: "Which nerve innervates the masseter?",
+        answers: [
+          { id: "a", text: "Trigeminal" },
+          { id: "b", text: "Facial" },
+        ],
+        correctAnswers: ["a"],
+      },
+    ],
+    [{ questionId: "q1", selected: ["a"] }]
+  );
+
+  assert.equal(
+    result.results[0].questionText,
+    "Which nerve innervates the masseter?"
+  );
+  assert.deepEqual(result.results[0].answers, [
+    { id: "a", text: "Trigeminal" },
+    { id: "b", text: "Facial" },
+  ]);
+});
+
+test("keeps a snapshot for an unanswered question too", () => {
+  const result = scoreAttempt(
+    [
+      {
+        _id: "q1",
+        question: "Name the muscle",
+        answers: [{ id: "a", text: "Temporalis" }],
+        correctAnswers: ["a"],
+      },
+    ],
+    []
+  );
+
+  assert.equal(result.results[0].correct, false);
+  assert.equal(result.results[0].questionText, "Name the muscle");
+  assert.equal(result.results[0].answers.length, 1);
+});
+
+test("survives rows with missing question text or answer fields", () => {
+  const result = scoreAttempt(
+    [{ _id: "q1", correctAnswers: ["a"], answers: [{}] }],
+    [{ questionId: "q1", selected: ["a"] }]
+  );
+
+  assert.equal(result.results[0].questionText, "");
+  assert.deepEqual(result.results[0].answers, [{ id: "", text: "" }]);
 });

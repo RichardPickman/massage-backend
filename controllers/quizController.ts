@@ -2,12 +2,19 @@ import type { Response } from "express";
 import { replaceNameToLink } from "./helpers";
 
 import ApiError from "../Error";
+import { buildAttemptAnswers } from "../helpers/attempt";
 import { readPageQuery } from "../helpers/pagination";
 import {
     scoreAttempt,
+    type StoredAnswer,
     type StoredQuestion,
     type SubmittedAnswer,
 } from "../helpers/score";
+import {
+    DEFAULT_THRESHOLD,
+    isThresholdError,
+    parseThreshold,
+} from "../helpers/threshold";
 import type { RequestWithUser } from "../middleware/Token";
 import AttemptResolver from "../services/Attempt";
 import QuizResolver from "../services/Quiz";
@@ -18,6 +25,8 @@ interface QuizDocument {
     _id: unknown;
     author?: unknown;
     questions?: unknown;
+    threshold?: unknown;
+    title?: unknown;
 }
 
 const isOwner = (author: unknown, req: RequestWithUser) =>
@@ -50,10 +59,13 @@ const toStoredQuestions = (questions: unknown): StoredQuestion[] => {
             return [];
         }
 
-        const { _id, correctAnswers } = question as {
-            _id?: unknown;
-            correctAnswers?: unknown;
-        };
+        const { _id, correctAnswers, question: questionText, answers } =
+            question as {
+                _id?: unknown;
+                correctAnswers?: unknown;
+                question?: unknown;
+                answers?: unknown;
+            };
 
         if (!_id) {
             return [];
@@ -65,6 +77,10 @@ const toStoredQuestions = (questions: unknown): StoredQuestion[] => {
                 correctAnswers: Array.isArray(correctAnswers)
                     ? correctAnswers.map(String)
                     : [],
+                // The scorer copies these into the attempt, so the review keeps
+                // showing what was asked even if the question changes later.
+                question: questionText == null ? "" : String(questionText),
+                answers: Array.isArray(answers) ? (answers as StoredAnswer[]) : [],
             },
         ];
     });
@@ -82,8 +98,19 @@ class QuizController {
             return res.status(401).json({ message: "Not authorised" });
         }
 
+        // Not silent clamping: a threshold of 500 is a client bug, and storing
+        // 100 would hide it instead of reporting it.
+        const parsedThreshold = parseThreshold(req.body.threshold);
+
+        if (isThresholdError(parsedThreshold)) {
+            return res.status(400).json({ message: parsedThreshold.message });
+        }
+
         const quiz = (await QuizResolver.create({
             ...req.body,
+            threshold: parsedThreshold?.ok
+                ? parsedThreshold.value
+                : DEFAULT_THRESHOLD,
             author: req.user.id,
         })) as QuizDocument | undefined;
 
@@ -119,6 +146,21 @@ class QuizController {
         }
 
         const { id: _id, _id: __id, author: _author, ...body } = req.body;
+
+        // Same validation as create, but an absent threshold means "leave the
+        // stored one alone" rather than "reset to default".
+        const parsedThreshold = parseThreshold(body.threshold);
+
+        if (isThresholdError(parsedThreshold)) {
+            return res.status(400).json({ message: parsedThreshold.message });
+        }
+
+        if (parsedThreshold?.ok) {
+            body.threshold = parsedThreshold.value;
+        } else {
+            delete body.threshold;
+        }
+
         const quiz = await QuizResolver.update(id, body);
 
         res.json({ message: "return item", payload: quiz });
@@ -197,10 +239,13 @@ class QuizController {
 
         const questions = toStoredQuestions(quiz.questions);
 
-        const score = scoreAttempt(questions, answers);
-        const questionIds = new Set(
-            score.results.map((result) => result.questionId),
-        );
+        // The quiz's threshold is copied onto the attempt, so raising it later
+        // does not retroactively fail attempts that already passed. A quiz
+        // stored before the field existed has no threshold: those attempts get
+        // no verdict at all rather than being failed after the fact.
+        const threshold =
+            typeof quiz.threshold === "number" ? quiz.threshold : null;
+        const score = scoreAttempt(questions, answers, threshold);
 
         const attempt = await AttemptResolver.create({
             user: req.user.id,
@@ -208,14 +253,10 @@ class QuizController {
             correctCount: score.correctCount,
             questionCount: score.questionCount,
             percent: score.percent,
-            answers: answers
-                .filter((answer) => questionIds.has(String(answer.questionId)))
-                .map((answer) => ({
-                    question: String(answer.questionId),
-                    selected: Array.isArray(answer.selected)
-                        ? answer.selected.map(String)
-                        : [],
-                })),
+            threshold: score.threshold,
+            passed: score.passed,
+            quizTitle: quiz.title == null ? "" : String(quiz.title),
+            answers: buildAttemptAnswers(score.results, answers),
         });
 
         return res.json({
@@ -225,6 +266,8 @@ class QuizController {
                 correctCount: score.correctCount,
                 questionCount: score.questionCount,
                 percent: score.percent,
+                threshold: score.threshold,
+                passed: score.passed,
                 results: score.results,
             },
         });
