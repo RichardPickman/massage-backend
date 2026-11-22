@@ -15,7 +15,9 @@ router.post(
     upload.array("images", 100),
     lecture.create,
 );
-router.get("/all", lecture.getAll);
+// Reading is signed-in only: the content is for a class, and an open list is an
+// open door for automated traffic.
+router.get("/all", JwtMiddleware, lecture.getAll);
 router.put(
     "/update/:id",
     JwtMiddleware,
@@ -24,6 +26,6 @@ router.put(
 );
 router.delete("/remove/:id", JwtMiddleware, lecture.remove);
 
-router.get("/:id", lecture.get);
+router.get("/:id", JwtMiddleware, lecture.get);
 
 export default router;

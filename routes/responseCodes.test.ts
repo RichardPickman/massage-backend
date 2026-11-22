@@ -20,7 +20,8 @@ process.env.SECRET_KEY = "spec-secret-key";
 // The three resolvers behind these routes are replaced with answers a test can
 // steer, so the assertions are about the response envelope, not Mongo.
 let lectureFound: unknown = null;
-let lectureUpdate: () => Promise<unknown> = () => Promise.resolve({ _id: "l1" });
+let lectureUpdate: () => Promise<unknown> = () =>
+    Promise.resolve({ _id: "l1" });
 let quizFound: unknown = null;
 
 LectureResolver.find = ((id: string) =>
@@ -32,7 +33,9 @@ LectureResolver.create = (() =>
 LectureResolver.update = ((id: string) =>
     lectureUpdate()) as unknown as typeof LectureResolver.update;
 LectureResolver.delete = (() =>
-    Promise.resolve({ deletedCount: 1 })) as unknown as typeof LectureResolver.delete;
+    Promise.resolve({
+        deletedCount: 1,
+    })) as unknown as typeof LectureResolver.delete;
 
 QuizResolver.find = ((id: string) =>
     Promise.resolve(quizFound)) as unknown as typeof QuizResolver.find;
@@ -42,12 +45,16 @@ QuizResolver.create = (() =>
         questions: [],
     })) as unknown as typeof QuizResolver.create;
 QuizResolver.delete = (() =>
-    Promise.resolve({ deletedCount: 1 })) as unknown as typeof QuizResolver.delete;
+    Promise.resolve({
+        deletedCount: 1,
+    })) as unknown as typeof QuizResolver.delete;
 
 AttemptResolver.create = (() =>
     Promise.resolve({ _id: "a1" })) as unknown as typeof AttemptResolver.create;
 UserResolver.delete = (() =>
-    Promise.resolve({ deletedCount: 1 })) as unknown as typeof UserResolver.delete;
+    Promise.resolve({
+        deletedCount: 1,
+    })) as unknown as typeof UserResolver.delete;
 
 const app = express();
 let server: Server;
@@ -102,7 +109,10 @@ const send = async (
     const response = await fetch(`${base}${path}`, {
         method,
         headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        body:
+            options.body === undefined
+                ? undefined
+                : JSON.stringify(options.body),
     });
 
     return { status: response.status, body: (await response.json()) as Body };
@@ -241,10 +251,34 @@ test("POST /api/quiz/create answers quiz.createFailed", async () => {
     }
 });
 
+test("refuses to list lectures without a token", async () => {
+    const { status, body } = await send("GET", "/api/lectures/all");
+
+    assert.equal(status, 401);
+    assertCoded(body, "Not authorised", "auth.notAuthorised");
+});
+
+test("refuses to list quizzes without a token", async () => {
+    const { status, body } = await send("GET", "/api/quiz/all");
+
+    assert.equal(status, 401);
+    assertCoded(body, "Not authorised", "auth.notAuthorised");
+});
+
+test("refuses to read one lecture without a token", async () => {
+    lectureFound = { _id: "l1", topic: "Topic", images: [] };
+
+    const { status } = await send("GET", "/api/lectures/l1");
+
+    assert.equal(status, 401);
+});
+
 test("GET /api/quiz/:id answers quiz.notFound", async () => {
     quizFound = null;
 
-    const { status, body } = await send("GET", "/api/quiz/unknown");
+    // Reading a quiz needs a token now, so the 404 has to be asked for by someone
+    // who may read at all.
+    const { status, body } = await send("GET", "/api/quiz/unknown", { token });
 
     assert.equal(status, 404);
     assertCoded(body, "Quiz not found", "quiz.notFound");
