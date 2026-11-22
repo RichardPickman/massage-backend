@@ -1,0 +1,71 @@
+name: Release pull request
+
+# master only ever takes commits from testing. When a feature lands on testing,
+# the release pull request that carries it to master should already be open, so the
+# only decision left is whether to merge it - not whether to create it.
+#
+# One open pull request at a time: if testing already has one, its branch moves and
+# the pull request follows on its own.
+
+on:
+  push:
+    branches: [testing]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
+jobs:
+  open:
+    name: open testing to master
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The token that opens a pull request cannot be the one that starts its
+    # workflows, or CI would never run on the release branch. It is only used
+    # for the pull request call.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Open the release pull request if none is open
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          pending="$(gh pr list --base master --head testing --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$pending" ]; then
+              echo "the release pull request is already open: #$pending"
+              exit 0
+          fi
+
+          # Nothing to release: testing adds no commits of its own.
+          if [ -z "$(git rev-list --count origin/master..origin/testing)" ]; then
+              echo "testing has nothing master does not"
+              exit 0
+          fi
+
+          body="$(
+              printf 'Release pull request, opened automatically when testing received new commits.\n\n'
+              printf 'Merging this is the only way into `master`: nothing else is merged there, and\n'
+              printf 'production is deployed by pressing Promote afterwards, not by the merge.\n\n'
+              printf '## Commits\n\n'
+              git log --no-merges --format='- %s (`%h`)' origin/master..origin/testing
+              printf '\n## Changes\n\n'
+              printf '```\n'
+              git diff --stat origin/master..origin/testing | tail -20
+              printf '```\n'
+          )"
+
+          gh pr create --base master --head testing \
+              --title "Testing" \
+              --body "$body"
+
+      - name: Note the pull request
+        if: always()
+        run: echo "release pull request handled" >> "$GITHUB_STEP_SUMMARY"
