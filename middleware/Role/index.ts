@@ -15,14 +15,20 @@ export default function (role: string) {
         const token = readToken(req);
 
         if (!token) {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
 
         try {
             const decoded = jwt.verify(token, process.env.SECRET_KEY as string);
 
             if (typeof decoded === "string") {
-                return res.status(401).json({ message: "Not authorised" });
+                return res.status(401).json({
+                    message: "Not authorised",
+                    code: "auth.notAuthorised",
+                });
             }
 
             if (decoded.role !== role) {
@@ -33,7 +39,10 @@ export default function (role: string) {
 
             return next();
         } catch (e) {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
     };
 }

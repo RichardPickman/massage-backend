@@ -12,7 +12,10 @@ class AdminController {
         if (!address.includes("@")) {
             return res
                 .status(400)
-                .json({ message: "A valid email address is required" });
+                .json({
+                    message: "A valid email address is required",
+                    code: "auth.invalidEmail",
+                });
         }
 
         const { secret } = getInviteConfig();

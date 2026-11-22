@@ -125,7 +125,10 @@ class UserController {
     // body - trusting the body here let a caller mint any role they liked.
     async check(req: RequestWithUser, res: Response) {
         if (!req.user) {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
 
         const token = generateJWT(req.user.id, req.user.email, req.user.role);
@@ -137,7 +140,10 @@ class UserController {
         const id = req.params.id;
 
         if (!req.user) {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
 
         // Shared path: a common user may only remove their own account, an admin
@@ -152,7 +158,11 @@ class UserController {
 
         const removeUser = await UserResolver.delete(id);
 
-        res.json({ message: "Removed successfully", payload: removeUser });
+        res.json({
+            message: "Removed successfully",
+            code: "user.removed",
+            payload: removeUser,
+        });
 
         return;
     }

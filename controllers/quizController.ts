@@ -95,7 +95,10 @@ class QuizController {
         }
 
         if (!req.user) {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
 
         // Not silent clamping: a threshold of 500 is a client bug, and storing
@@ -103,7 +106,10 @@ class QuizController {
         const parsedThreshold = parseThreshold(req.body.threshold);
 
         if (isThresholdError(parsedThreshold)) {
-            return res.status(400).json({ message: parsedThreshold.message });
+            return res.status(400).json({
+                message: parsedThreshold.message,
+                code: "quiz.invalidThreshold",
+            });
         }
 
         const quiz = (await QuizResolver.create({
@@ -115,7 +121,10 @@ class QuizController {
         })) as QuizDocument | undefined;
 
         if (!quiz) {
-            return res.status(404).json({ message: "Quiz create failed" });
+            return res.status(404).json({
+                message: "Quiz create failed",
+                code: "quiz.createFailed",
+            });
         }
 
         const questionsWithUrls = await replaceNameToLink(
@@ -124,6 +133,7 @@ class QuizController {
 
         res.json({
             message: "Item created successfully",
+            code: "quiz.created",
             payload: { ...quiz, questions: questionsWithUrls },
         });
 
@@ -138,11 +148,17 @@ class QuizController {
             | undefined;
 
         if (!existing) {
-            return res.status(404).json({ message: "Quiz not found" });
+            return res.status(404).json({
+                message: "Quiz not found",
+                code: "quiz.notFound",
+            });
         }
 
         if (!isOwner(existing.author, req)) {
-            return res.status(403).json({ message: "Not allowed" });
+            return res.status(403).json({
+                message: "Not allowed",
+                code: "common.forbidden",
+            });
         }
 
         const { id: _id, _id: __id, author: _author, ...body } = req.body;
@@ -152,7 +168,10 @@ class QuizController {
         const parsedThreshold = parseThreshold(body.threshold);
 
         if (isThresholdError(parsedThreshold)) {
-            return res.status(400).json({ message: parsedThreshold.message });
+            return res.status(400).json({
+                message: parsedThreshold.message,
+                code: "quiz.invalidThreshold",
+            });
         }
 
         if (parsedThreshold?.ok) {
@@ -172,7 +191,10 @@ class QuizController {
         const quiz = (await QuizResolver.find(id)) as QuizDocument | undefined;
 
         if (!quiz) {
-            return res.status(404).json({ message: "Quiz not found" });
+            return res.status(404).json({
+                message: "Quiz not found",
+                code: "quiz.notFound",
+            });
         }
 
         const questionsWithUrls = await replaceNameToLink(
@@ -192,11 +214,17 @@ class QuizController {
             | undefined;
 
         if (!quiz) {
-            return res.status(404).json({ message: "Quiz not found" });
+            return res.status(404).json({
+                message: "Quiz not found",
+                code: "quiz.notFound",
+            });
         }
 
         if (!isOwner(quiz.author, req)) {
-            return res.status(403).json({ message: "Not allowed" });
+            return res.status(403).json({
+                message: "Not allowed",
+                code: "common.forbidden",
+            });
         }
 
         res.json({
@@ -223,7 +251,10 @@ class QuizController {
     // trusted with its own score.
     async submit(req: RequestWithUser, res: Response) {
         if (!req.user) {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
 
         const id = req.params.id;
@@ -234,7 +265,10 @@ class QuizController {
         const quiz = (await QuizResolver.find(id)) as QuizDocument | undefined;
 
         if (!quiz) {
-            return res.status(404).json({ message: "Quiz not found" });
+            return res.status(404).json({
+                message: "Quiz not found",
+                code: "quiz.notFound",
+            });
         }
 
         const questions = toStoredQuestions(quiz.questions);
@@ -261,6 +295,7 @@ class QuizController {
 
         return res.json({
             message: "Attempt saved",
+            code: "attempt.saved",
             payload: {
                 attempt,
                 correctCount: score.correctCount,
@@ -281,16 +316,26 @@ class QuizController {
             | undefined;
 
         if (!existing) {
-            return res.status(404).json({ message: "Quiz not found" });
+            return res.status(404).json({
+                message: "Quiz not found",
+                code: "quiz.notFound",
+            });
         }
 
         if (!isOwner(existing.author, req)) {
-            return res.status(403).json({ message: "Not allowed" });
+            return res.status(403).json({
+                message: "Not allowed",
+                code: "common.forbidden",
+            });
         }
 
         const removeQuiz = await QuizResolver.delete(id);
 
-        res.json({ message: "Removed successfully", payload: removeQuiz });
+        res.json({
+            message: "Removed successfully",
+            code: "quiz.removed",
+            payload: removeQuiz,
+        });
     }
 }
 
