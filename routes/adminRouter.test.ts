@@ -81,14 +81,18 @@ test("lets a preflight request through, so the browser's own call can happen", a
     assert.notEqual(response.status, 403);
 });
 
-test("answers a malformed address with a refusal, never with a code", async () => {
+test("answers a malformed address with a refusal that mints no code", async () => {
     const response = await invite("not-an-address", { token: tokenFor("admin") });
 
     assert.equal(response.status, 400);
 
     const body = (await response.json()) as { message: string; code?: string };
 
-    assert.equal(body.code, undefined);
+    // The refusal carries a translation code, never an invite code: `code` on a
+    // success is the minted secret, and this path must not hand one out.
+    assert.equal(body.message, "A valid email address is required");
+    assert.equal(body.code, "auth.invalidEmail");
+    assert.notEqual(body.code, makeInviteCode("not-an-address", secret));
 });
 
 test("hands an admin the same code the minting script would", async () => {

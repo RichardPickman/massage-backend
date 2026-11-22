@@ -115,11 +115,17 @@ class LectureController {
         const files = Array.isArray(req.files) ? req.files : [];
 
         if (!topic) {
-            return res.status(400).json({ message: "Incorrect inputs" });
+            return res.status(400).json({
+                message: "Incorrect inputs",
+                code: "common.invalidInputs",
+            });
         }
 
         if (!req.user) {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
 
         const imagesNames = [];
@@ -130,7 +136,10 @@ class LectureController {
             } catch (e) {
                 console.log("Lecture image upload failed:", e);
 
-                return res.status(502).json({ message: "Image upload failed" });
+                return res.status(502).json({
+                    message: "Image upload failed",
+                    code: "common.imageUploadFailed",
+                });
             }
         }
 
@@ -143,7 +152,11 @@ class LectureController {
             author: req.user.id,
         });
 
-        res.json({ message: "Item created successfully", payload: result });
+        res.json({
+            message: "Item created successfully",
+            code: "lecture.created",
+            payload: result,
+        });
 
         return;
     }
@@ -156,11 +169,17 @@ class LectureController {
         )) as LectureDocument | null;
 
         if (!existing) {
-            return res.status(404).json({ message: "Lecture not found" });
+            return res.status(404).json({
+                message: "Lecture not found",
+                code: "lecture.notFound",
+            });
         }
 
         if (!isOwner(existing.author, req)) {
-            return res.status(403).json({ message: "Not allowed" });
+            return res.status(403).json({
+                message: "Not allowed",
+                code: "common.forbidden",
+            });
         }
 
         const files = Array.isArray(req.files) ? req.files : [];
@@ -185,7 +204,10 @@ class LectureController {
             } catch (e) {
                 console.log("Lecture image upload failed:", e);
 
-                return res.status(502).json({ message: "Image upload failed" });
+                return res.status(502).json({
+                    message: "Image upload failed",
+                    code: "common.imageUploadFailed",
+                });
             }
         }
 
@@ -221,13 +243,20 @@ class LectureController {
             // The newly uploaded objects are not referenced by any record yet.
             await Promise.all(addedImages.map((image) => removeImage(image)));
 
-            return res.status(500).json({ message: "Lecture update failed" });
+            return res.status(500).json({
+                message: "Lecture update failed",
+                code: "lecture.updateFailed",
+            });
         }
 
         // Delete objects only once the record has stopped pointing at them.
         await Promise.all(removedImages.map((image) => removeImage(image)));
 
-        res.json({ message: "Lecture updated successfully", payload: result });
+        res.json({
+            message: "Lecture updated successfully",
+            code: "lecture.updated",
+            payload: result,
+        });
 
         return;
     }
@@ -240,7 +269,11 @@ class LectureController {
         )) as LectureDocument | null;
 
         if (!lecture) {
-            return res.status(404).json({ message: "Not found", code: 404 });
+            // `code` is the machine-readable reason everywhere else; this one used
+            // to carry the HTTP status, which the client must not have to guess.
+            return res
+                .status(404)
+                .json({ message: "Not found", code: "lecture.notFound" });
         }
 
         const images = await Promise.all(
@@ -280,11 +313,17 @@ class LectureController {
         )) as LectureDocument | null;
 
         if (!existing) {
-            return res.status(404).json({ message: "Lecture not found" });
+            return res.status(404).json({
+                message: "Lecture not found",
+                code: "lecture.notFound",
+            });
         }
 
         if (!isOwner(existing.author, req)) {
-            return res.status(403).json({ message: "Not allowed" });
+            return res.status(403).json({
+                message: "Not allowed",
+                code: "common.forbidden",
+            });
         }
 
         await Promise.all(
