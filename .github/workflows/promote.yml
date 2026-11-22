@@ -10,132 +10,132 @@ name: Promote
 # is how a rollback or an earlier release is put back.
 
 on:
-    workflow_dispatch:
-        inputs:
-            sha:
-                description: Optional commit on master; empty means the head of master
-                required: false
-                type: string
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Optional commit on master; empty means the head of master
+        required: false
+        type: string
 
 permissions:
-    contents: read
+  contents: read
 
 concurrency:
-    group: promote
-    cancel-in-progress: false
+  group: promote
+  cancel-in-progress: false
 
 jobs:
-    promote:
-        name: promote
-        runs-on: ubuntu-latest
-        # The environment scopes the credential: this one holds its own SSH_KEY,
-        # and its deployment rule admits master only, so a dispatch from any other
-        # ref is refused before it sees the secret. Not an approval gate - there is
-        # nobody to approve a solo operator's own run.
-        environment: production
-        timeout-minutes: 20
-        permissions:
-            contents: read
-            packages: write
+  promote:
+    name: promote
+    runs-on: ubuntu-latest
+    # The environment scopes the credential: this one holds its own SSH_KEY,
+    # and its deployment rule admits master only, so a dispatch from any other
+    # ref is refused before it sees the secret. Not an approval gate - there is
+    # nobody to approve a solo operator's own run.
+    environment: production
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/richardpickman/massage-backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # master, because that is what the box runs and where the deploy
+          # script is read from.
+          ref: master
+          fetch-depth: 0
+
+      - id: verify
+        name: Check the commit is one production may run
         env:
-            IMAGE: ghcr.io/richardpickman/massage-backend
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  # master, because that is what the box runs and where the deploy
-                  # script is read from.
-                  ref: master
-                  fetch-depth: 0
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          # An empty input is the common case: promote the head of master.
+          sha="${INPUT_SHA:-$(git rev-parse HEAD)}"
+          git rev-parse --verify --quiet "$sha^{commit}" > /dev/null || {
+              echo "$sha is not a commit in this repository" >&2
+              exit 1
+          }
+          # Without this, a promotion is a way around the branch model:
+          # anything built on staging could reach the live stack. It has to
+          # be merged to master first.
+          git merge-base --is-ancestor "$sha" origin/master || {
+              echo "$sha is not on master - merge the testing branch first, so production only ever runs reviewed code" >&2
+              exit 1
+          }
+          # The merge commit's own CI is what builds the image, so the tag
+          # may not exist yet when a promote follows a merge within minutes.
+          # Fail with a sentence a person can act on instead of a bare
+          # registry error.
+          short=$(git rev-parse --short=7 "$sha")
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
 
-            - id: verify
-              name: Check the commit is one production may run
-              env:
-                  INPUT_SHA: ${{ inputs.sha }}
-              run: |
-                  # An empty input is the common case: promote the head of master.
-                  sha="${INPUT_SHA:-$(git rev-parse HEAD)}"
-                  git rev-parse --verify --quiet "$sha^{commit}" > /dev/null || {
-                      echo "$sha is not a commit in this repository" >&2
-                      exit 1
-                  }
-                  # Without this, a promotion is a way around the branch model:
-                  # anything built on staging could reach the live stack. It has to
-                  # be merged to master first.
-                  git merge-base --is-ancestor "$sha" origin/master || {
-                      echo "$sha is not on master - merge the testing branch first, so production only ever runs reviewed code" >&2
-                      exit 1
-                  }
-                  # The merge commit's own CI is what builds the image, so the tag
-                  # may not exist yet when a promote follows a merge within minutes.
-                  # Fail with a sentence a person can act on instead of a bare
-                  # registry error.
-                  short=$(git rev-parse --short=7 "$sha")
-                  echo "sha=$sha" >> "$GITHUB_OUTPUT"
-                  echo "short=$short" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
 
-            - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-            - uses: docker/login-action@v3
-              with:
-                  registry: ghcr.io
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wait for the image of that commit
+        id: image
+        env:
+          SHORT: ${{ steps.verify.outputs.short }}
+        run: |
+          # CI builds the image on every push to master; a promote pressed
+          # right after a merge can land before that run finishes, so wait
+          # rather than fail. Five minutes covers a gate plus a publish.
+          for attempt in $(seq 1 30); do
+              if docker buildx imagetools inspect "$IMAGE:sha-$SHORT" > /dev/null 2>&1; then
+                  echo "found $IMAGE:sha-$SHORT (attempt $attempt)"
+                  exit 0
+              fi
+              sleep 10
+          done
+          echo "$IMAGE:sha-$SHORT was not built within five minutes - check that the CI run for $SHORT on master succeeded" >&2
+          exit 1
 
-            - name: Wait for the image of that commit
-              id: image
-              env:
-                  SHORT: ${{ steps.verify.outputs.short }}
-              run: |
-                  # CI builds the image on every push to master; a promote pressed
-                  # right after a merge can land before that run finishes, so wait
-                  # rather than fail. Five minutes covers a gate plus a publish.
-                  for attempt in $(seq 1 30); do
-                      if docker buildx imagetools inspect "$IMAGE:sha-$SHORT" > /dev/null 2>&1; then
-                          echo "found $IMAGE:sha-$SHORT (attempt $attempt)"
-                          exit 0
-                      fi
-                      sleep 10
-                  done
-                  echo "$IMAGE:sha-$SHORT was not built within five minutes - check that the CI run for $SHORT on master succeeded" >&2
-                  exit 1
+      - name: Move the production tag onto the tested image
+        env:
+          SHORT: ${{ steps.verify.outputs.short }}
+        run: |
+          # A manifest copy, not a rebuild: the digest stays the same, so
+          # the bytes production pulls are the bytes that were tested.
+          docker buildx imagetools create -t "$IMAGE:production" "$IMAGE:sha-$SHORT"
 
-            - name: Move the production tag onto the tested image
-              env:
-                  SHORT: ${{ steps.verify.outputs.short }}
-              run: |
-                  # A manifest copy, not a rebuild: the digest stays the same, so
-                  # the bytes production pulls are the bytes that were tested.
-                  docker buildx imagetools create -t "$IMAGE:production" "$IMAGE:sha-$SHORT"
+          {
+              echo "$IMAGE:production -> sha-$SHORT"
+              echo "digest $(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$IMAGE:production")"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-                  {
-                      echo "$IMAGE:production -> sha-$SHORT"
-                      echo "digest $(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$IMAGE:production")"
-                  } >> "$GITHUB_STEP_SUMMARY"
+      - name: Unpack the key and pin the host
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # Same reason as ci.yml: a non-default port is [host]:port.
+          port="${SSH_PORT:-49152}"
+          if [ "$port" != "22" ]; then
+              awk -v p="$port" '{ if ($1 !~ /^\[/) $1 = "[" $1 "]:" p; print }' \
+                  ~/.ssh/known_hosts > ~/.ssh/known_hosts.port
+              cat ~/.ssh/known_hosts.port >> ~/.ssh/known_hosts
+          fi
 
-            - name: Unpack the key and pin the host
-              env:
-                  SSH_KEY: ${{ secrets.SSH_KEY }}
-                  SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-                  SSH_PORT: ${{ secrets.SSH_PORT }}
-              run: |
-                  mkdir -p ~/.ssh
-                  printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
-                  chmod 600 ~/.ssh/deploy
-                  printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-                  # Same reason as ci.yml: a non-default port is [host]:port.
-                  port="${SSH_PORT:-49152}"
-                  if [ "$port" != "22" ]; then
-                      awk -v p="$port" '{ if ($1 !~ /^\[/) $1 = "[" $1 "]:" p; print }' \
-                          ~/.ssh/known_hosts > ~/.ssh/known_hosts.port
-                      cat ~/.ssh/known_hosts.port >> ~/.ssh/known_hosts
-                  fi
-
-            - name: Point the live stack at that commit
-              env:
-                  SSH_HOST: ${{ secrets.SSH_HOST }}
-                  SSH_USER: ${{ secrets.SSH_USER }}
-                  SSH_PORT: ${{ secrets.SSH_PORT }}
-                  SHA: ${{ steps.verify.outputs.sha }}
-              run: |
-                  ssh -i ~/.ssh/deploy -p "${SSH_PORT:-49152}" "$SSH_USER@$SSH_HOST" \
-                      "bash -s -- production api $SHA" < scripts/deploy.sh
+      - name: Point the live stack at that commit
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SHA: ${{ steps.verify.outputs.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy -p "${SSH_PORT:-49152}" "$SSH_USER@$SSH_HOST" \
+              "bash -s -- production api $SHA" < scripts/deploy.sh
