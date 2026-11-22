@@ -1,0 +1,60 @@
+name: Sync testing
+
+# master may only move by merging testing into it, so once such a merge lands,
+# testing is behind by that merge commit (and nothing else). Bringing it forward
+# straight away keeps the branch usable for the next feature - without it the next
+# pull request re-merges the same commits and every later promotion shows them
+# again.
+#
+# A merge of testing into master is the only event that matters here: pushing to
+# master any other way is blocked by branch protection.
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: sync-testing
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: fast-forward testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: testing
+          fetch-depth: 0
+
+      - name: Fast-forward testing to master
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+
+          # Behind by nothing: master was pushed outside a merge of testing,
+          # and moving a branch forward past commits that never ran on
+          # staging would skip the integration step.
+          if git merge-base --is-ancestor origin/master testing; then
+              echo "testing already contains master"
+              exit 0
+          fi
+
+          ahead="$(git rev-list --count origin/master..testing)"
+          if [ "$ahead" != "0" ]; then
+              echo "testing has $ahead commit(s) master does not - refusing to move it" >&2
+              exit 1
+          fi
+
+          git merge --ff-only origin/master
+          git push origin testing
+          echo "testing fast-forwarded to $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
