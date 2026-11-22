@@ -4,6 +4,7 @@ import { getMissingConfig, getServerConfig } from "./config";
 import router from "./routes";
 import errorHandler from "./middleware/ErrorHandle/index";
 import logger from "./middleware/log/index";
+import { throttle } from "./middleware/Throttle";
 const e = require("express");
 
 const missing = getMissingConfig(process.env);
@@ -37,6 +38,21 @@ if (process.env.TRUST_PROXY === "1") {
 
 app.use(cors());
 app.use(e.json());
+
+// A ceiling on how much one caller can ask for. The content routes now need a
+// token, so this is not what keeps strangers out - it is what stops one signed-in
+// account, or a script with a token, from turning the API into a load generator.
+// Three hundred a minute is several times what a person reading a lecture with
+// its images can produce.
+app.use(
+    "/api",
+    throttle({
+        limit: Number(process.env.API_RATE_LIMIT) || 300,
+        windowMs: Number(process.env.API_RATE_WINDOW_MS) || 60 * 1000,
+        message: "Too many requests. Slow down and try again shortly.",
+    }),
+);
+
 app.use(logger);
 app.use("/api", router);
 app.use(errorHandler);
