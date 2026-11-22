@@ -1,0 +1,58 @@
+# The edge for a preview stack: the same routing as the deployed Caddyfile, with
+# the three differences a public throwaway needs.
+#
+# `tls internal` - the name is production's, so asking Let's Encrypt for it would
+# either fail or hand this stack the live certificate.
+#
+# HTTP/3 is off: the container listens on 443 but the stack is published on a high
+# port, so Caddy's alt-svc would advertise h3 on the *production* port and a
+# browser following it would fetch this page's asset names from the live stack.
+#
+# `basic_auth` - the port is open to the internet, and a preview runs unreviewed
+# code against a copy of real accounts. The hash lives in this directory, readable
+# only by the deploy user, and is generated once by the up script.
+
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$DOMAIN:localhost} {
+	tls internal
+
+	basic_auth {
+		{$PREVIEW_AUTH}
+	}
+
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy {$API_UPSTREAM:api:8280}
+	}
+
+	handle /assets/* {
+		root * /srv
+		file_server
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+		header Cache-Control "no-cache"
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# A preview must never be indexed, and must never outlive its PR quietly.
+		X-Robots-Tag "noindex, nofollow"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

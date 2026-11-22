@@ -42,14 +42,20 @@ export default function (
     const token = readToken(req);
 
     if (!token) {
-        return res.status(401).json({ message: "Not authorised" });
+        return res.status(401).json({
+            message: "Not authorised",
+            code: "auth.notAuthorised",
+        });
     }
 
     try {
         const decoded = jwt.verify(token, process.env.SECRET_KEY as string);
 
         if (typeof decoded === "string") {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
 
         // Attach to req.user, never req.body: body carries the payload being written.
@@ -57,6 +63,9 @@ export default function (
 
         return next();
     } catch (e) {
-        return res.status(401).json({ message: "Not authorised" });
+        return res.status(401).json({
+            message: "Not authorised",
+            code: "auth.notAuthorised",
+        });
     }
 }

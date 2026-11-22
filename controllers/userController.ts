@@ -5,12 +5,23 @@ import { ObjectId } from "mongodb";
 import ApiError from "../Error";
 import { getInviteConfig } from "../config";
 import { decideRegistration, normalizeEmail } from "../helpers/invite";
+import {
+    NICKNAME_MAX,
+    NICKNAME_MIN,
+    nicknameProblem,
+    normalizeNickname,
+} from "../helpers/nickname";
 import type { RequestWithUser } from "../middleware/Token";
 import UserResolver from "../services/User";
 
-function generateJWT(id: ObjectId | string, email: string, role: string) {
+function generateJWT(
+    id: ObjectId | string,
+    email: string,
+    role: string,
+    nickname?: string,
+) {
     return jwt.sign(
-        { id: id, email: email, role },
+        { id: id, email: email, role, nickname: nickname ?? null },
         process.env.SECRET_KEY as string,
         { expiresIn: "24h" },
     );
@@ -36,6 +47,22 @@ class UserController {
         if (!email || !password) {
             return next(ApiError.internal("Incorrect input"));
         }
+
+        // The nickname is chosen here, not derived from the address: the address is
+        // never verified, so it makes a poor name to show next to a test result.
+        const problem = nicknameProblem(user ?? "");
+
+        if (problem) {
+            // Plain response with a code, not ApiError: the error class grows a
+            // `code` argument in another open pull request, and this refusal must
+            // not wait for it.
+            return res.status(400).json({
+                message: `The nickname must be ${NICKNAME_MIN}-${NICKNAME_MAX} characters and contain only letters, digits, spaces, dots, dashes or underscores`,
+                code: "auth.nicknameInvalid",
+            });
+        }
+
+        const nickname = normalizeNickname(user);
 
         // One answer for every refusal below. A wrong code, a missing code and an
         // address that already exists have to be indistinguishable, or the
@@ -65,13 +92,24 @@ class UserController {
             return next(refused);
         }
 
+        // Reached only after the code checked out, so this cannot be used to probe
+        // which nicknames exist without an invite.
+        const takenNickname = await UserResolver.findByNickname(nickname);
+
+        if (takenNickname) {
+            return res.status(400).json({
+                message: "This nickname is already taken",
+                code: "auth.nicknameTaken",
+            });
+        }
+
         // Cost 10 where this used to hash at 5: one hash per registration, so the
         // extra time costs the user nothing they notice and buys real resistance.
         const hashPassword = await bcrypt.hash(password, 10);
 
         // The role comes from the gate, never from the request body.
         const createUser = await UserResolver.create({
-            user,
+            user: nickname,
             email: address,
             password: hashPassword,
             role: decision.role,
@@ -81,6 +119,7 @@ class UserController {
             createUser?._id as ObjectId,
             address,
             decision.role,
+            nickname,
         );
 
         res.json({ token });
@@ -125,7 +164,10 @@ class UserController {
     // body - trusting the body here let a caller mint any role they liked.
     async check(req: RequestWithUser, res: Response) {
         if (!req.user) {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
 
         const token = generateJWT(req.user.id, req.user.email, req.user.role);
@@ -137,7 +179,10 @@ class UserController {
         const id = req.params.id;
 
         if (!req.user) {
-            return res.status(401).json({ message: "Not authorised" });
+            return res.status(401).json({
+                message: "Not authorised",
+                code: "auth.notAuthorised",
+            });
         }
 
         // Shared path: a common user may only remove their own account, an admin
@@ -152,7 +197,11 @@ class UserController {
 
         const removeUser = await UserResolver.delete(id);
 
-        res.json({ message: "Removed successfully", payload: removeUser });
+        res.json({
+            message: "Removed successfully",
+            code: "user.removed",
+            payload: removeUser,
+        });
 
         return;
     }
