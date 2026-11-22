@@ -138,4 +138,4 @@ jobs:
                   SHA: ${{ steps.verify.outputs.sha }}
               run: |
                   ssh -i ~/.ssh/deploy -p "${SSH_PORT:-49152}" "$SSH_USER@$SSH_HOST" \
-                      "bash -s -- production web $SHA" < scripts/deploy.sh
+                      "bash -s -- production api $SHA" < scripts/deploy.sh
