@@ -1,0 +1,59 @@
+# A throwaway stack for one pull request: the same two images as the other
+# stacks, a database of its own, and one published port.
+#
+# Everything that names this instance comes from the environment the up script
+# writes next to this file (PREVIEW_ID, PREVIEW_PORT, DOMAIN, the two tags and
+# the whole API env), so the file itself never changes per preview.
+#
+# No `build:` on purpose: a preview exists to show what CI published for a
+# commit, and building here would rehearse a different artefact.
+
+name: massage-preview-${PREVIEW_ID:?PREVIEW_ID is not set}
+
+services:
+  api:
+    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-backend:${API_TAG:?API_TAG is not set}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "8280"
+      TRUST_PROXY: "1"
+    tmpfs:
+      - /app/static:size=128m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8280/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  web:
+    image: ${REGISTRY:-ghcr.io/richardpickman}/massage-web:${WEB_TAG:?WEB_TAG is not set}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is not set}
+      API_UPSTREAM: http://api:8280
+    ports:
+      # One port per preview, allocated by the script. Nothing else is published:
+      # the API is reachable only through Caddy inside this project.
+      - "${PREVIEW_PORT:?PREVIEW_PORT is not set}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  # Per project, so a preview never shares a CA with staging and cannot touch
+  # its certificate.
+  caddy_data:
+  caddy_config:
