@@ -31,6 +31,18 @@ const stubFind = (account: unknown) => {
     return queries;
 };
 
+const stubFindByNickname = (account: unknown = null) => {
+    const calls: string[] = [];
+
+    UserResolver.findByNickname = ((nickname: string) => {
+        calls.push(nickname);
+
+        return Promise.resolve(account);
+    }) as typeof UserResolver.findByNickname;
+
+    return calls;
+};
+
 const stubCreate = (account: unknown) => {
     const calls: Record<string, string>[] = [];
 
@@ -89,6 +101,7 @@ test("refuses a registration with no code without reading the user collection", 
     const { res, failures } = await register({
         email: "stranger@example.com",
         password: "a-long-password",
+        user: "Ania",
     });
 
     assert.equal(failures.length, 1);
@@ -107,6 +120,7 @@ test("refuses a code minted for another address with the same message", async ()
     const { failures } = await register({
         email: "stranger@example.com",
         password: "a-long-password",
+        user: "Ania",
         code,
     });
 
@@ -120,6 +134,8 @@ test("creates the account its code was minted for, as an ordinary user", async (
     const created = stubCreate({ _id: "new" });
     const code = makeInviteCode("friend@example.com", secret);
 
+    const nicknames = stubFindByNickname();
+
     const { res, failures } = await register({
         user: "Friend",
         email: " Friend@Example.COM ",
@@ -129,8 +145,10 @@ test("creates the account its code was minted for, as an ordinary user", async (
 
     assert.deepEqual(failures, []);
     assert.deepEqual(queries, [{ email: "friend@example.com" }]);
+    assert.deepEqual(nicknames, ["Friend"]);
     assert.equal(created.length, 1);
     assert.equal(created[0].email, "friend@example.com");
+    assert.equal(created[0].user, "Friend");
     assert.equal(created[0].role, "user");
     // Stored as a hash, and at a cost worth the time it takes.
     assert.notEqual(created[0].password, "a-long-password");
@@ -146,6 +164,7 @@ test("refuses an address that already exists, only after the gate passes", async
     const { failures } = await register({
         email: "friend@example.com",
         password: "a-long-password",
+        user: "Ania",
         code,
     });
 
@@ -162,11 +181,13 @@ test("registers an admin address with no code, even with no secret set", async (
 
     try {
         stubFind(null);
+        stubFindByNickname();
         const created = stubCreate({ _id: "owner" });
 
         const { failures } = await register({
             email: "owner@example.com",
             password: "a-long-password",
+            user: "Owner",
         });
 
         assert.deepEqual(failures, []);
@@ -187,6 +208,7 @@ test("signs in a differently-cased address against the same account", async () =
     const { res, failures } = await signIn({
         email: " Friend@Example.COM ",
         password: "a-long-password",
+        user: "Ania",
     });
 
     // The address is stored and looked up normalised, so the capitals someone
@@ -194,4 +216,55 @@ test("signs in a differently-cased address against the same account", async () =
     assert.deepEqual(failures, []);
     assert.deepEqual(queries, [{ email: "friend@example.com" }]);
     assert.ok((res.body as { token: string }).token);
+});
+
+test("refuses a nickname shorter than three characters", async () => {
+    stubFind(null);
+    const created = stubCreate({ _id: "new" });
+    const code = makeInviteCode("short@example.com", secret);
+
+    const { res, failures } = await register({
+        user: "Al",
+        email: "short@example.com",
+        password: "a-long-password",
+        code,
+    });
+
+    assert.deepEqual(failures, []);
+    assert.equal((res.body as { code: string }).code, "auth.nicknameInvalid");
+    assert.deepEqual(created, []);
+});
+
+test("refuses a nickname that is already taken, ignoring case and spacing", async () => {
+    stubFind(null);
+    stubFindByNickname({ _id: "someone" });
+    const created = stubCreate({ _id: "new" });
+    const code = makeInviteCode("second@example.com", secret);
+
+    const { res, failures } = await register({
+        user: "  ANIA  ",
+        email: "second@example.com",
+        password: "a-long-password",
+        code,
+    });
+
+    assert.deepEqual(failures, []);
+    assert.equal((res.body as { code: string }).code, "auth.nicknameTaken");
+    assert.deepEqual(created, []);
+});
+
+test("stores the nickname trimmed, with inner spaces collapsed", async () => {
+    stubFind(null);
+    stubFindByNickname();
+    const created = stubCreate({ _id: "new" });
+    const code = makeInviteCode("spaced@example.com", secret);
+
+    await register({
+        user: "  Anna   Maria ",
+        email: "spaced@example.com",
+        password: "a-long-password",
+        code,
+    });
+
+    assert.equal(created[0].user, "Anna Maria");
 });
