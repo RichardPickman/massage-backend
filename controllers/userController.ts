@@ -4,7 +4,11 @@ import * as jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
 import ApiError from "../Error";
 import { getInviteConfig } from "../config";
-import { decideRegistration, normalizeEmail } from "../helpers/invite";
+import {
+    decideRegistration,
+    normalizeEmail,
+    studentAddress,
+} from "../helpers/invite";
 import {
     NICKNAME_MAX,
     NICKNAME_MIN,
@@ -42,9 +46,12 @@ const findAccount = async (email: string, address: string) => {
 
 class UserController {
     async registration(req: RequestWithUser, res: Response, next: any) {
+        // An address is optional now: students sign up with a nickname only, and
+        // the server makes the address. Email is still read because the owner
+        // bootstraps the first admin with it.
         const { user, email, password, code } = req.body;
 
-        if (!email || !password) {
+        if (!password) {
             return next(ApiError.internal("Incorrect input"));
         }
 
@@ -64,22 +71,19 @@ class UserController {
 
         const nickname = normalizeNickname(user);
 
-        // One answer for every refusal below. A wrong code, a missing code and an
-        // address that already exists have to be indistinguishable, or the
-        // endpoint becomes a way to ask who has an account.
         // One answer and one code for every refusal below: a wrong code, a missing
-        // code, an address that already exists and a spent invite must stay
-        // indistinguishable, or the endpoint becomes a way to ask who has an account.
+        // code and an address that already exists must stay indistinguishable, or
+        // the endpoint becomes a way to ask who has an account.
         const refused = ApiError.forbidden(
-            "This address needs a valid invite code to register",
+            "A valid registration code is required",
             "auth.inviteRequired",
         );
 
-        const { secret, adminEmails } = getInviteConfig();
+        const { registrationCode, adminEmails } = getInviteConfig();
         const decision = decideRegistration({
             email,
             code,
-            secret,
+            registrationCode,
             adminEmails,
         });
 
@@ -87,7 +91,13 @@ class UserController {
             return next(refused);
         }
 
-        const address = normalizeEmail(email);
+        // The owner registers with their own address; everyone else gets one made
+        // from the nickname, because the address is never verified and asking for
+        // it only makes people invent one.
+        const address =
+            decision.role === "admin"
+                ? normalizeEmail(email)
+                : studentAddress(nickname);
         const candidate = await UserResolver.find({ email: address });
 
         // Only once the caller has proved they were invited, so a refused attempt

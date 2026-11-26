@@ -5,14 +5,13 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import test, { after, before } from "node:test";
 import * as jwt from "jsonwebtoken";
-import { makeInviteCode, verifyInviteCode } from "../helpers/invite";
 import errorHandler from "../middleware/ErrorHandle/index";
 import adminRouter from "./adminRouter";
 
-const secret = "spec-invite-secret";
+const registrationCode = "PRZEMYSLAW-2026-KOD";
 
 process.env.SECRET_KEY = "spec-secret-key";
-process.env.INVITE_SECRET = secret;
+process.env.REGISTRATION_CODE = registrationCode;
 
 const app = express();
 let server: Server;
@@ -46,83 +45,64 @@ after(
 const tokenFor = (role: string) =>
     jwt.sign({ id: "u1", email: "a@b.c", role }, "spec-secret-key");
 
-const invite = (email: string, options: { token?: string; method?: string } = {}) => {
+const readCode = (options: { token?: string; method?: string } = {}) => {
     const headers: Record<string, string> = {};
 
     if (options.token !== undefined) {
         headers.authorization = `Bearer ${options.token}`;
     }
 
-    return fetch(
-        `${base}/api/admin/invites?email=${encodeURIComponent(email)}`,
-        { method: options.method ?? "GET", headers },
-    );
+    return fetch(`${base}/api/admin/registration-code`, {
+        method: options.method ?? "GET",
+        headers,
+    });
 };
 
 test("refuses a caller with no token", async () => {
-    const response = await invite("friend@example.com");
+    const response = await readCode();
 
     assert.equal(response.status, 401);
 });
 
 test("refuses a caller who is not an admin", async () => {
-    const response = await invite("friend@example.com", {
-        token: tokenFor("user"),
-    });
+    const response = await readCode({ token: tokenFor("user") });
 
     assert.equal(response.status, 403);
     assert.deepEqual(await response.json(), { message: "Not authorized" });
 });
 
 test("lets a preflight request through, so the browser's own call can happen", async () => {
-    const response = await invite("friend@example.com", { method: "OPTIONS" });
+    const response = await readCode({ method: "OPTIONS" });
 
     assert.notEqual(response.status, 401);
     assert.notEqual(response.status, 403);
 });
 
-test("answers a malformed address with a refusal that mints no code", async () => {
-    const response = await invite("not-an-address", { token: tokenFor("admin") });
-
-    assert.equal(response.status, 400);
-
-    const body = (await response.json()) as { message: string; code?: string };
-
-    // The refusal carries a translation code, never an invite code: `code` on a
-    // success is the minted secret, and this path must not hand one out.
-    assert.equal(body.message, "A valid email address is required");
-    assert.equal(body.code, "auth.invalidEmail");
-    assert.notEqual(body.code, makeInviteCode("not-an-address", secret));
-});
-
-test("hands an admin the same code the minting script would", async () => {
-    const response = await invite(" Friend@Example.com ", {
-        token: tokenFor("admin"),
-    });
+test("hands an admin the very code the registration gate accepts", async () => {
+    const response = await readCode({ token: tokenFor("admin") });
 
     assert.equal(response.status, 200);
 
-    const body = (await response.json()) as { email: string; code: string };
+    const body = (await response.json()) as { code: string };
 
-    assert.equal(body.email, "friend@example.com");
-    assert.equal(body.code, makeInviteCode("friend@example.com", secret));
-    // And it is the code the registration gate accepts, which is the whole point.
-    assert.equal(verifyInviteCode("friend@example.com", body.code, secret), true);
-    assert.equal(verifyInviteCode("someone@else.c", body.code, secret), false);
+    // One code for everybody: there is no address in the answer any more, and
+    // the panel must never show a code that differs from the one checked.
+    assert.equal(body.code, registrationCode);
+    assert.deepEqual(Object.keys(body), ["code"]);
 });
 
-test("says so instead of minting when no secret is configured", async () => {
-    const configured = process.env.INVITE_SECRET;
 
-    process.env.INVITE_SECRET = "";
+
+test("says so instead of showing an empty code when none is configured", async () => {
+    const configured = process.env.REGISTRATION_CODE;
+
+    process.env.REGISTRATION_CODE = "";
 
     try {
-        const response = await invite("friend@example.com", {
-            token: tokenFor("admin"),
-        });
+        const response = await readCode({ token: tokenFor("admin") });
 
         assert.equal(response.status, 500);
     } finally {
-        process.env.INVITE_SECRET = configured;
+        process.env.REGISTRATION_CODE = configured;
     }
 });
