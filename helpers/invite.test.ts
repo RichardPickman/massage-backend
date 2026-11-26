@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  codeMatches,
   decideRegistration,
   isAdminEmail,
-  makeInviteCode,
   normalizeEmail,
-  verifyInviteCode,
+  studentAddress,
 } from "./invite";
 
-const secret = "a-secret-only-the-server-knows";
-const nothing = { code: undefined, secret, adminEmails: "" };
+const registrationCode = "PRZEMYSLAW-2026-KOD";
+const openRegistration = {
+  adminEmails: "",
+  registrationCode,
+};
+const refused = { allowed: false, role: null };
 
 test("normalises an address so case and stray space cannot make a second account", () => {
   assert.equal(normalizeEmail("  Foo@Example.COM "), "foo@example.com");
@@ -17,67 +21,38 @@ test("normalises an address so case and stray space cannot make a second account
   assert.equal(normalizeEmail(null), "");
 });
 
-test("mints a code a person can read out and paste", () => {
-  assert.match(makeInviteCode("a@b.c", secret), /^[0-9A-F]{4}(-[0-9A-F]{4}){3}$/);
-});
-
-test("mints the same code for the same address every time, and never across addresses", () => {
-  assert.equal(
-    makeInviteCode("a@b.c", secret),
-    makeInviteCode("a@b.c", secret),
-  );
-  assert.notEqual(
-    makeInviteCode("a@b.c", secret),
-    makeInviteCode("a@b.d", secret),
-  );
-});
-
-test("mints a different code once the secret changes, retiring the old ones", () => {
-  assert.notEqual(
-    makeInviteCode("a@b.c", secret),
-    makeInviteCode("a@b.c", "another-secret"),
-  );
-});
-
-test("mints by address, not by how the address was typed", () => {
-  assert.equal(
-    makeInviteCode("A@B.C", secret),
-    makeInviteCode(" a@b.c ", secret),
-  );
-});
-
-test("accepts a code however the punctuation survived the trip", () => {
-  const code = makeInviteCode("a@b.c", secret);
-
-  assert.equal(verifyInviteCode("a@b.c", code, secret), true);
-  assert.equal(verifyInviteCode("a@b.c", code.replace(/-/g, ""), secret), true);
-  assert.equal(verifyInviteCode("a@b.c", ` ${code.toLowerCase()} `, secret), true);
-});
-
-test("refuses a code minted for a different address", () => {
-  const code = makeInviteCode("a@b.c", secret);
-
-  assert.equal(verifyInviteCode("someone@else.c", code, secret), false);
+test("accepts the code however the punctuation survived the trip", () => {
+  assert.equal(codeMatches(registrationCode, registrationCode), true);
+  assert.equal(codeMatches(registrationCode.replace(/-/g, ""), registrationCode), true);
+  assert.equal(codeMatches(` ${registrationCode.toLowerCase()} `, registrationCode), true);
 });
 
 test("refuses a code with one character changed", () => {
-  const code = makeInviteCode("a@b.c", secret);
-  const last = code.slice(-1) === "A" ? "B" : "A";
-  const tampered = `${code.slice(0, -1)}${last}`;
+  const tampered = `${registrationCode.slice(0, -1)}X`;
 
-  assert.equal(verifyInviteCode("a@b.c", tampered, secret), false);
+  assert.equal(codeMatches(tampered, registrationCode), false);
+});
+
+test("refuses a shorter or longer code without throwing on the length check", () => {
+  for (const code of ["", " ", "PRZEMYSLAW", `${registrationCode}X`]) {
+    assert.equal(codeMatches(code, registrationCode), false);
+  }
 });
 
 test("refuses an empty or missing code without throwing", () => {
   for (const code of ["", " ", undefined, null, "----"]) {
-    assert.equal(verifyInviteCode("a@b.c", code, secret), false);
+    assert.equal(codeMatches(code, registrationCode), false);
   }
 });
 
-test("refuses every code when no secret is configured", () => {
-  const code = makeInviteCode("a@b.c", secret);
+test("refuses every code when no registration code is configured", () => {
+  assert.equal(codeMatches(registrationCode, ""), false);
+});
 
-  assert.equal(verifyInviteCode("a@b.c", code, ""), false);
+test("makes a student address from the nickname, without asking for one", () => {
+  assert.equal(studentAddress("Ania"), "ania@students.local");
+  assert.equal(studentAddress("  Jan Kowalski "), "jan.kowalski@students.local");
+  assert.equal(studentAddress("Ola_99"), "ola_99@students.local");
 });
 
 test("reads the admin list with spaces, commas and case", () => {
@@ -87,29 +62,53 @@ test("reads the admin list with spaces, commas and case", () => {
   assert.equal(isAdminEmail("owner@x.c", ""), false);
 });
 
-test("refuses a registration with no code", () => {
-  assert.deepEqual(decideRegistration({ email: "a@b.c", ...nothing }), {
-    allowed: false,
-    role: null,
-  });
-});
-
-test("refuses a registration whose code belongs to another address", () => {
-  const code = makeInviteCode("invited@x.c", secret);
-
-  assert.equal(
-    decideRegistration({ email: "other@x.c", code, secret, adminEmails: "" })
-      .allowed,
-    false,
+test("admits a registration that carries the shared code, as an ordinary user", () => {
+  assert.deepEqual(
+    decideRegistration({
+      email: undefined,
+      code: registrationCode,
+      ...openRegistration,
+    }),
+    { allowed: true, role: "user" },
   );
 });
 
-test("admits the address its code was minted for, as an ordinary user", () => {
-  const code = makeInviteCode("invited@x.c", secret);
+test("admits the shared code for any address, since the code is no longer tied to one", () => {
+  for (const email of [undefined, "", "anything@else.c"]) {
+    assert.equal(
+      decideRegistration({ email, code: registrationCode, ...openRegistration }).allowed,
+      true,
+    );
+  }
+});
 
+test("refuses a registration with a wrong code", () => {
   assert.deepEqual(
-    decideRegistration({ email: "invited@x.c", code, secret, adminEmails: "" }),
-    { allowed: true, role: "user" },
+    decideRegistration({
+      email: undefined,
+      code: "PRZEMYSLAW-2026-KOX",
+      ...openRegistration,
+    }),
+    refused,
+  );
+});
+
+test("refuses a registration with no code at all", () => {
+  assert.deepEqual(
+    decideRegistration({ email: undefined, code: undefined, ...openRegistration }),
+    refused,
+  );
+});
+
+test("closes registration for everyone else when no code is configured", () => {
+  assert.deepEqual(
+    decideRegistration({
+      email: "anything@x.c",
+      code: "COKOLWIEK",
+      adminEmails: "owner@x.c",
+      registrationCode: "",
+    }),
+    refused,
   );
 });
 
@@ -117,38 +116,22 @@ test("admits an admin address with no code, and makes it an admin", () => {
   assert.deepEqual(
     decideRegistration({
       email: "owner@x.c",
-      ...nothing,
+      code: undefined,
       adminEmails: "owner@x.c",
+      registrationCode,
     }),
     { allowed: true, role: "admin" },
   );
 });
 
-test("admits an admin address even before a secret is configured", () => {
+test("admits an admin address even before a code is configured", () => {
   assert.deepEqual(
     decideRegistration({
       email: "owner@x.c",
       code: undefined,
-      secret: "",
       adminEmails: "owner@x.c",
+      registrationCode: "",
     }),
     { allowed: true, role: "admin" },
   );
-});
-
-test("closes registration for everyone else when no secret is configured", () => {
-  assert.equal(
-    decideRegistration({ email: "a@b.c", code: "ABCD-1234-EF56-7890", secret: "", adminEmails: "owner@x.c" })
-      .allowed,
-    false,
-  );
-});
-
-test("refuses a registration with no address at all", () => {
-  for (const email of ["", " ", undefined, null]) {
-    assert.equal(
-      decideRegistration({ email, ...nothing, adminEmails: "owner@x.c" }).allowed,
-      false,
-    );
-  }
 });

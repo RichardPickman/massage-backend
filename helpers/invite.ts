@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 
 type Role = "user" | "admin";
 
@@ -9,51 +9,37 @@ export type InviteDecision =
 type DecideInput = {
   email: unknown;
   code: unknown;
-  secret: string;
   adminEmails: string;
+  registrationCode: string;
 };
-
-const codeLength = 16;
 
 export const normalizeEmail = (email: unknown) =>
   String(email ?? "").trim().toLowerCase();
 
-const group = (code: string) => code.replace(/(.{4})(?=.)/g, "$1-");
-
-// The dashes exist for a person copying the code out of a chat message, so
-// verification throws the punctuation away and compares the characters only.
+// Codes travel through chat apps, so punctuation is dropped and case ignored
+// before the comparison: a person sending "abcd-1234" and "ABCD1234" is sending
+// the same code twice.
 const canonical = (code: unknown) =>
   String(code ?? "").replace(/[^0-9a-z]/gi, "").toUpperCase();
 
 /**
- * A code is an HMAC of the address, so it needs nothing stored and is worthless
- * for any other address. Changing the secret retires every code at once.
+ * One code for everyone, held only in the environment: nothing is stored, and
+ * changing REGISTRATION_CODE retires the old one for whoever has not signed up
+ * yet. An empty setting closes registration instead of opening it.
  */
-export const makeInviteCode = (email: unknown, secret: string) => {
-  const digest = createHmac("sha256", secret)
-    .update(normalizeEmail(email))
-    .digest("hex");
-
-  return group(digest.slice(0, codeLength).toUpperCase());
-};
-
-export const verifyInviteCode = (
-  email: unknown,
-  code: unknown,
-  secret: string,
-) => {
-  if (!secret) {
+export const codeMatches = (given: unknown, expected: string) => {
+  if (!expected) {
     return false;
   }
 
-  const given = canonical(code);
-  const expected = canonical(makeInviteCode(email, secret));
+  const attempt = canonical(given);
+  const wanted = canonical(expected);
 
-  if (given.length !== expected.length) {
+  if (!attempt || attempt.length !== wanted.length) {
     return false;
   }
 
-  return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+  return timingSafeEqual(Buffer.from(attempt), Buffer.from(wanted));
 };
 
 const adminList = (adminEmails: string) =>
@@ -65,32 +51,30 @@ const adminList = (adminEmails: string) =>
 export const isAdminEmail = (email: unknown, adminEmails: string) =>
   adminList(adminEmails).includes(normalizeEmail(email));
 
+/**
+ * Students no longer type an address, so the server makes one. This keeps the
+ * `email` field populated for accounts that predate nicknames and for the
+ * login-by-address path, without asking anyone for an address they do not have.
+ * A nickname cannot contain "@", so these never collide with real addresses.
+ */
+export const studentAddress = (nickname: string) =>
+  `${nickname.trim().toLowerCase().replace(/\s+/g, ".")}@students.local`;
+
 export const decideRegistration = ({
   email,
   code,
-  secret,
   adminEmails,
+  registrationCode,
 }: DecideInput): InviteDecision => {
-  const address = normalizeEmail(email);
-
-  if (!address) {
-    return { allowed: false, role: null };
-  }
-
-  // Bootstrap first, and before the secret is checked: an owner who has not set
-  // one yet can still register, which is the difference between closed and shut
-  // out of their own site.
-  if (isAdminEmail(address, adminEmails)) {
+  // Bootstrap first: the owner's address is the only way to mint the first admin,
+  // and it keeps working when no registration code is configured at all.
+  if (isAdminEmail(email, adminEmails)) {
     return { allowed: true, role: "admin" };
   }
 
-  // No secret means no way to check a code, so nobody else gets in. Failing
-  // open here would make a missing variable into an open signup.
-  if (!secret) {
-    return { allowed: false, role: null };
-  }
-
-  if (!verifyInviteCode(address, code, secret)) {
+  // No code configured means no way to check one, so nobody else gets in.
+  // Failing open here would turn a missing variable into an open signup.
+  if (!codeMatches(code, registrationCode)) {
     return { allowed: false, role: null };
   }
 
