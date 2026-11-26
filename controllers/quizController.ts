@@ -4,6 +4,7 @@ import { replaceNameToLink } from "./helpers";
 import ApiError from "../Error";
 import { buildAttemptAnswers } from "../helpers/attempt";
 import { readPageQuery } from "../helpers/pagination";
+import { shuffle } from "../helpers/shuffle";
 import {
     scoreAttempt,
     type StoredAnswer,
@@ -201,9 +202,13 @@ class QuizController {
             withoutAnswers(quiz.questions),
         );
 
+        // Order is decided per request, not per quiz. A student who learned the
+        // syllabus in its own order (the finger alphabet is the clearest case)
+        // would otherwise answer from the sequence instead of from the picture.
+        // Scoring is untouched: answers are submitted against question ids.
         res.json({
             message: "return item",
-            payload: { ...quiz, questions: questionsWithUrls },
+            payload: { ...quiz, questions: shuffle(questionsWithUrls) },
         });
     }
 
