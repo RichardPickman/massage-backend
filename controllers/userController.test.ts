@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Response } from "express";
 import test from "node:test";
-import { makeInviteCode } from "../helpers/invite";
+
 import type { RequestWithUser } from "../middleware/Token";
 import UserResolver from "../services/User";
 import UserController from "./userController";
@@ -10,11 +10,11 @@ const bcrypt = require("bcrypt");
 
 const controller = new UserController();
 
-const secret = "spec-secret";
-const refusal = "This address needs a valid invite code to register";
+const registrationCode = "PRZEMYSLAW-2026-KOD";
+const refusal = "A valid registration code is required";
 
 process.env.SECRET_KEY = "spec-secret-key";
-process.env.INVITE_SECRET = secret;
+process.env.REGISTRATION_CODE = registrationCode;
 process.env.ADMIN_EMAILS = "owner@example.com";
 
 // The service is a singleton behind a CommonJS import, so this spec and the
@@ -113,15 +113,13 @@ test("refuses a registration with no code without reading the user collection", 
     assert.deepEqual(created, []);
 });
 
-test("refuses a code minted for another address with the same message", async () => {
+test("refuses a wrong registration code with the same message", async () => {
     const queries = stubFind(null);
-    const code = makeInviteCode("invited@example.com", secret);
 
     const { failures } = await register({
-        email: "stranger@example.com",
         password: "a-long-password",
         user: "Ania",
-        code,
+        code: "PRZEMYSLAW-2026-KOX",
     });
 
     assert.equal(failures[0].status, 403);
@@ -132,25 +130,25 @@ test("refuses a code minted for another address with the same message", async ()
     assert.deepEqual(queries, []);
 });
 
-test("creates the account its code was minted for, as an ordinary user", async () => {
+test("creates the account with the shared code and an address made from the nickname", async () => {
     const queries = stubFind(null);
     const created = stubCreate({ _id: "new" });
-    const code = makeInviteCode("friend@example.com", secret);
 
     const nicknames = stubFindByNickname();
 
     const { res, failures } = await register({
         user: "Friend",
-        email: " Friend@Example.COM ",
         password: "a-long-password",
-        code,
+        code: registrationCode,
     });
 
     assert.deepEqual(failures, []);
-    assert.deepEqual(queries, [{ email: "friend@example.com" }]);
+    // No address was sent, so the server made one: the nickname is what the
+    // student chose, and it is unique already.
+    assert.deepEqual(queries, [{ email: "friend@students.local" }]);
     assert.deepEqual(nicknames, ["Friend"]);
     assert.equal(created.length, 1);
-    assert.equal(created[0].email, "friend@example.com");
+    assert.equal(created[0].email, "friend@students.local");
     assert.equal(created[0].user, "Friend");
     assert.equal(created[0].role, "user");
     // Stored as a hash, and at a cost worth the time it takes.
@@ -162,13 +160,11 @@ test("creates the account its code was minted for, as an ordinary user", async (
 test("refuses an address that already exists, only after the gate passes", async () => {
     const queries = stubFind({ _id: "existing" });
     const created = stubCreate({ _id: "new" });
-    const code = makeInviteCode("friend@example.com", secret);
 
     const { failures } = await register({
-        email: "friend@example.com",
         password: "a-long-password",
         user: "Ania",
-        code,
+        code: registrationCode,
     });
 
     assert.equal(failures[0].status, 403);
@@ -176,14 +172,14 @@ test("refuses an address that already exists, only after the gate passes", async
     // The code is what the client translates, and one refusal has to cover every
     // way of getting it wrong.
     assert.equal(failures[0].code, "auth.inviteRequired");
-    assert.deepEqual(queries, [{ email: "friend@example.com" }]);
+    assert.deepEqual(queries, [{ email: "ania@students.local" }]);
     assert.deepEqual(created, []);
 });
 
-test("registers an admin address with no code, even with no secret set", async () => {
-    const configured = process.env.INVITE_SECRET;
+test("registers an admin address with no code, even with no registration code set", async () => {
+    const configured = process.env.REGISTRATION_CODE;
 
-    process.env.INVITE_SECRET = "";
+    process.env.REGISTRATION_CODE = "";
 
     try {
         stubFind(null);
@@ -199,7 +195,7 @@ test("registers an admin address with no code, even with no secret set", async (
         assert.deepEqual(failures, []);
         assert.equal(created[0].role, "admin");
     } finally {
-        process.env.INVITE_SECRET = configured;
+        process.env.REGISTRATION_CODE = configured;
     }
 });
 
@@ -262,7 +258,7 @@ test("refuses an unknown nickname with the same answer as an unknown address", a
 test("refuses a nickname shorter than three characters", async () => {
     stubFind(null);
     const created = stubCreate({ _id: "new" });
-    const code = makeInviteCode("short@example.com", secret);
+    const code = registrationCode;
 
     const { res, failures } = await register({
         user: "Al",
@@ -280,7 +276,7 @@ test("refuses a nickname that is already taken, ignoring case and spacing", asyn
     stubFind(null);
     stubFindByNickname({ _id: "someone" });
     const created = stubCreate({ _id: "new" });
-    const code = makeInviteCode("second@example.com", secret);
+    const code = registrationCode;
 
     const { res, failures } = await register({
         user: "  ANIA  ",
@@ -298,7 +294,7 @@ test("stores the nickname trimmed, with inner spaces collapsed", async () => {
     stubFind(null);
     stubFindByNickname();
     const created = stubCreate({ _id: "new" });
-    const code = makeInviteCode("spaced@example.com", secret);
+    const code = registrationCode;
 
     await register({
         user: "  Anna   Maria ",

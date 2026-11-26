@@ -20,7 +20,9 @@ type BucketConfig = {
 };
 
 type InviteConfig = {
-  secret: string;
+  // One code for everyone, set by the owner in .env. Empty closes registration to
+  // everybody but the ADMIN_EMAILS bootstrap addresses.
+  registrationCode: string;
   adminEmails: string;
 };
 
@@ -46,11 +48,11 @@ export const getBucketConfig = (): BucketConfig => ({
 });
 
 export const getInviteConfig = (): InviteConfig => ({
-  secret: (process.env.INVITE_SECRET as string) || "",
+  registrationCode: (process.env.REGISTRATION_CODE as string) || "",
   adminEmails: (process.env.ADMIN_EMAILS as string) || "",
 });
 
-// The variables without which the app cannot do its job. INVITE_SECRET and
+// The variables without which the app cannot do its job. REGISTRATION_CODE and
 // ADMIN_EMAILS are deliberately absent: leaving them unset closes registration
 // to everyone but the bootstrap addresses, which is a valid deployment rather
 // than a mistake.
