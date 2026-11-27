@@ -33,16 +33,10 @@ class QuizService {
   }
 
   async update(id: string, props: Record<string, unknown>) {
-    const updateQuiz = quizModel.findOneAndUpdate(
-      { _id: id },
-      { ...props },
-      { new: true },
-      (data, err) => {
-        if (err) console.log(err);
-
-        return data;
-      }
-    );
+    // No callback here: in Mongoose 6 passing one executes the query eagerly, and
+    // awaiting the same query afterwards throws "Query was already executed" —
+    // the write landed, the endpoint answered 500.
+    const updateQuiz = quizModel.findOneAndUpdate({ _id: id }, { ...props }, { new: true });
 
     return updateQuiz;
   }
