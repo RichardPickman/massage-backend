@@ -6,3 +6,8 @@ allowBuilds:
   # only verifies them and misdetects the system libvips (8.18) as a reason to
   # compile from source, so skip it.
   sharp: false
+  # mongodb-memory-server downloads a mongod binary in a postinstall script when
+  # one is not cached. It is only a test dependency, but without the script the
+  # first integration test run has to fetch the binary at test time, and that
+  # download has no timeout inside the test process.
+  mongodb-memory-server: true

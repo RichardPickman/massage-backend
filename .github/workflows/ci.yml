@@ -36,7 +36,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm test
+      # Coverage is the gate, not a report: the run fails under 70% lines or 60%
+      # branches. The data-layer tests need a mongod, which mongodb-memory-server
+      # downloads on install — hence the postinstall allowance in pnpm-workspace.yaml.
+      - run: pnpm test:coverage
       - run: pnpm api:build
 
   # The artefact a deploy pulls. Every tag names a commit, so the TAG in a

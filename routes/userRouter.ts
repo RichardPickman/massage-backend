@@ -28,6 +28,10 @@ router.post("/login", authThrottle, user.login);
 // "authenticated" here, and the controller decides who may touch which record.
 router.get("/auth", JwtMiddleware, user.check);
 
+// No gate, on purpose: a caller whose token is already invalid must still be able to
+// end the session instead of retrying forever.
+router.post("/logout", user.logout);
+
 router.delete("/remove/:id", JwtMiddleware, user.remove);
 
 export default router;

@@ -8,7 +8,9 @@
     "promote": "ts-node scripts/promote.ts",
     "start": "node build/index.js",
     "test": "node --test -r ts-node/register",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "test:coverage": "node --test -r ts-node/register --experimental-test-coverage --test-coverage-lines=70 --test-coverage-branches=60",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "e2e:api": "ts-node e2e/server.ts"
   },
   "keywords": [],
   "author": "",
@@ -44,6 +46,7 @@
     "@types/multer-s3": "^3.0.0",
     "@types/node": "^26.6.5",
     "@types/uuid": "^8.3.4",
+    "mongodb-memory-server": "^11.4.0",
     "nodemon": "^2.0.20",
     "ts-node": "^10.9.1",
     "typescript": "^5.9.3"

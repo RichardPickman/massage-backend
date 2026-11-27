@@ -208,6 +208,14 @@ class UserController {
         return res.json({ token });
     }
 
+    // Tokens are not revocable, so signing out is the client dropping its copy. The
+    // endpoint exists because the client has always called it: without the route the
+    // request answered 404, and a client that only clears its token after a successful
+    // call stayed signed in.
+    async logout(_req: RequestWithUser, res: Response) {
+        return res.json({ message: "Signed out" });
+    }
+
     async remove(req: RequestWithUser, res: Response, next: any) {
         const id = req.params.id;
 
