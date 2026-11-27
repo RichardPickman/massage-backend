@@ -9,7 +9,8 @@
     "start": "node build/index.js",
     "test": "node --test -r ts-node/register",
     "test:coverage": "node --test -r ts-node/register --experimental-test-coverage --test-coverage-lines=70 --test-coverage-branches=60",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "e2e:api": "ts-node e2e/server.ts"
   },
   "keywords": [],
   "author": "",
